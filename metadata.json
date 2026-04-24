@@ -1,0 +1,5 @@
+{
+  "name": "BioAuth Keystroke Dynamics",
+  "description": "Автоматизированная система управления состоянием аутентификации пользователя на основе клавиатурного почерка (Keystroke Dynamics). Прототип для ВКР.",
+  "requestFramePermissions": []
+}
