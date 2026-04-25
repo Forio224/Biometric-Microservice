@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class KeystrokeFeatures(BaseModel):
-    totalDuration: float = Field(ge=0.0, le=60.0)
+    # Frontend sends timings in milliseconds (performance.now()).
+    # Allow up to 60 seconds in ms.
+    totalDuration: float = Field(ge=0.0, le=60000.0)
     dwellTimes: Dict[str, float]
     flightTimes: Dict[str, float]
     globalDwells: Optional[List[float]] = None

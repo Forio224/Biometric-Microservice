@@ -288,19 +288,23 @@ export default function App() {
     ApiService.setLocalMode(useLocalMode);
     checkServer();
 
-    // Очистка старых шаблонов, если они не содержат глобальных признаков
-    ApiService.getUsers()
-      .then((localUsers) => {
-        if (localUsers.length === 0) return;
-        return ApiService.getTemplate(localUsers[0].username).then((tpl) => {
-          if (tpl && tpl.globalDwellMean === undefined) {
-            console.warn("Обнаружены устаревшие шаблоны. Очистка базы данных...");
-            ApiService.clearLocalDb();
-            window.location.reload();
-          }
-        });
-      })
-      .catch(() => {});
+    // Миграция старых шаблонов актуальна только для Local DB (browser storage).
+    // В серверном режиме структура шаблона может отличаться, и reload здесь приводит
+    // к бесконечному циклу запросов/перезагрузок.
+    if (useLocalMode) {
+      ApiService.getUsers()
+        .then((localUsers) => {
+          if (localUsers.length === 0) return;
+          return ApiService.getTemplate(localUsers[0].username).then((tpl) => {
+            if (tpl && tpl.globalDwellMean === undefined) {
+              console.warn("Обнаружены устаревшие шаблоны. Очистка базы данных...");
+              ApiService.clearLocalDb();
+              window.location.reload();
+            }
+          });
+        })
+        .catch(() => {});
+    }
 
     const interval = setInterval(() => {
         if (!useLocalMode) checkServer();
@@ -361,7 +365,7 @@ export default function App() {
       setLoading(true);
       try {
         await ApiService.registerUser(username, newSamples);
-        const method = useLocalMode ? "GMM (Локально)" : "GMM AI (Сервер)";
+        const method = useLocalMode ? "GMM (Локально)" : "GMM (Сервер)";
         toast.success(`Профиль успешно создан! Метод: ${method}`);
         setRegSamples([]);
         setRegStep(0);
@@ -549,13 +553,13 @@ export default function App() {
                     onClick={() => { if(useLocalMode) toggleMode(); }}
                     className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!useLocalMode ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500'}`}
                 >
-                    Сервер (AI)
+                    Сервер
                 </button>
                 <button 
                     onClick={() => { if(!useLocalMode) toggleMode(); }}
                     className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${useLocalMode ? 'bg-white shadow-sm text-orange-700' : 'text-gray-500'}`}
                 >
-                    Локально (GMM)
+                    Локально
                 </button>
              </div>
 
@@ -612,7 +616,7 @@ export default function App() {
                     <input 
                       type="text" 
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="username"
+                      placeholder="Имя пользователя"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                     />
@@ -751,12 +755,12 @@ export default function App() {
                   <UserPlus size={32} />
                 </div>
                 <h2 className="text-2xl font-bold">
-                    {useLocalMode ? 'Создание локального профиля' : 'Обучение нейросети (GMM)'}
+                    {useLocalMode ? 'Создание локального профиля' : 'Получение шаблона'}
                 </h2>
                 <p className="text-gray-500 mt-2 text-sm">
                     {useLocalMode 
                         ? 'Статистический метод. Данные останутся в этом браузере.' 
-                        : 'Продвинутый AI метод. Данные сохранятся в PostgreSQL.'}
+                        : 'Данные сохранятся в PostgreSQL.'}
                 </p>
               </div>
 

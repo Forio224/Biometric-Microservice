@@ -3,6 +3,24 @@ import { StorageService } from './storageService';
 
 const API_URL = 'http://localhost:8000';
 
+const formatApiError = (err: any, fallback: string): string => {
+  if (!err) return fallback;
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail)) {
+    const messages = err.detail
+      .map((item: any) => {
+        if (!item) return null;
+        if (typeof item === 'string') return item;
+        const path = Array.isArray(item.loc) ? item.loc.join('.') : '';
+        const msg = item.msg || item.message || JSON.stringify(item);
+        return path ? `${path}: ${msg}` : msg;
+      })
+      .filter(Boolean);
+    return messages.length > 0 ? messages.join('; ') : fallback;
+  }
+  return err.message || fallback;
+};
+
 // Флаг режима работы. По умолчанию пытаемся работать с сервером, но App.tsx может переключить.
 let isLocalMode = false;
 
@@ -53,7 +71,7 @@ export const ApiService = {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || 'Registration failed');
+      throw new Error(formatApiError(err, 'Registration failed'));
     }
     return res.json();
   },
@@ -77,7 +95,7 @@ export const ApiService = {
     });
     if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || 'Verification failed');
+        throw new Error(formatApiError(err, 'Verification failed'));
     }
     return res.json();
   },
