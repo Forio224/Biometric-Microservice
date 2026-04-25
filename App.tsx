@@ -502,120 +502,163 @@ export default function App() {
   // Экран "Сервер недоступен" показываем только если мы НЕ в локальном режиме и сервер лежит
   if (!serverOnline && !useLocalMode) {
       return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-600 p-4">
-              <ServerCrash size={64} className="text-red-400 mb-4" />
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Сервер недоступен</h1>
+          <div className="min-h-screen flex flex-col items-center justify-center bg-parchment-50 text-slate-700 p-4">
+              <ServerCrash size={64} className="text-burgundy-600 mb-4" />
+              <h1 className="font-serif text-2xl font-bold text-slate-900 mb-2">Сервер недоступен</h1>
               <p className="text-center max-w-md mb-6">
-                  Бэкенд (Python + PostgreSQL) не отвечает.
+                  Серверная часть (Python&nbsp;+ PostgreSQL) не&nbsp;отвечает.
               </p>
-              
-              <div className="flex gap-4">
-                <button onClick={checkServer} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+
+              <div className="flex flex-wrap gap-3 justify-center">
+                <button onClick={checkServer} className="flex items-center gap-2 px-5 py-2 bg-academy-700 text-white rounded-sm hover:bg-academy-800 transition">
                     <RefreshCw size={18} /> Повторить попытку
                 </button>
-                <button onClick={toggleMode} className="flex items-center gap-2 px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">
-                    <Database size={18} /> Переключить на Local DB
+                <button onClick={toggleMode} className="flex items-center gap-2 px-5 py-2 bg-white border border-slate-300 text-slate-800 rounded-sm hover:bg-slate-50 transition">
+                    <Database size={18} /> Переключить на локальный режим
                 </button>
               </div>
-              
-              <div className="mt-8 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-xs font-mono text-left w-full max-w-lg opacity-70">
-                  <p>Для запуска сервера:</p>
-                  <p className="bg-gray-100 p-1 rounded mt-1">uvicorn main:app --reload</p>
+
+              <div className="mt-8 bg-white p-4 rounded-sm border border-slate-300 shadow-sm text-xs font-mono text-left w-full max-w-lg">
+                  <p className="text-slate-600">Для запуска сервера:</p>
+                  <p className="bg-slate-100 p-1.5 rounded-sm mt-1 text-slate-900">uvicorn main:app --reload</p>
               </div>
           </div>
       );
   }
 
+  const tabs: { id: typeof activeTab; numeral: string; label: string }[] = [
+    { id: 'login',      numeral: 'I',   label: 'Верификация личности' },
+    { id: 'register',   numeral: 'II',  label: 'Регистрация эталона' },
+    { id: 'testing',    numeral: 'III', label: 'Оценка FAR / FRR' },
+    { id: 'continuous', numeral: 'IV',  label: 'Непрерывная защита' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 pb-20">
+    <div className="min-h-screen bg-parchment-50 text-slate-900 flex flex-col">
       <Toaster position="top-center" richColors />
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${useLocalMode ? 'bg-orange-500' : 'bg-indigo-600'}`}>
-                <Sigma size={20} />
-              </div>
-              <h1 className="text-xl font-bold flex items-center flex-wrap sm:flex-nowrap gap-2">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-800 to-gray-600">BioAuth</span>
-                <span className={`text-[10px] sm:text-xs font-medium text-white px-2 py-0.5 rounded-full whitespace-nowrap ${useLocalMode ? 'bg-orange-500' : 'bg-indigo-600'}`}>
-                  {useLocalMode ? 'ЛОКАЛЬНЫЙ РЕЖИМ' : 'СЕРВЕРНЫЙ РЕЖИМ'}
-                </span>
-              </h1>
+
+      {/* Academic title block */}
+      <header className="bg-white border-b-2 border-academy-700">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+          <div className="flex items-start justify-between gap-4 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+            <div className="leading-relaxed">
+              <div>Министерство науки и высшего образования</div>
+              <div>Кафедра информационной безопасности</div>
+            </div>
+            <div className="text-right leading-relaxed hidden sm:block">
+              <div>Выпускная квалификационная работа</div>
+              <div>Прототип программного комплекса</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 w-full md:w-auto justify-start md:justify-end overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
-             {/* Toggle Mode */}
-             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg shrink-0">
-                <button 
-                    onClick={() => { if(useLocalMode) toggleMode(); }}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${!useLocalMode ? 'bg-white shadow-sm text-indigo-700' : 'text-gray-500'}`}
-                >
-                    Сервер
-                </button>
-                <button 
-                    onClick={() => { if(!useLocalMode) toggleMode(); }}
-                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${useLocalMode ? 'bg-white shadow-sm text-orange-700' : 'text-gray-500'}`}
-                >
-                    Локально
-                </button>
-             </div>
+          <div className="vkr-rule my-4" />
 
-            <nav className="flex gap-1 bg-gray-100 p-1 rounded-lg shrink-0">
+          <div className="flex flex-col items-center text-center">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-academy-700 font-semibold mb-2">
+              Тема исследования
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold text-slate-900 leading-snug max-w-3xl">
+              Биометрическая аутентификация пользователя
+              <br className="hidden sm:block" />
+              на&nbsp;основе клавиатурного почерка
+            </h1>
+            <p className="font-serif italic text-slate-600 mt-3 text-sm sm:text-base">
+              Разработка и&nbsp;экспериментальное исследование программного прототипа
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 text-xs text-slate-700">
+            <div className="border border-slate-300 bg-white px-3 py-2 rounded-sm">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500">Автор работы</div>
+              <div className="font-serif text-sm text-slate-900">________________________</div>
+            </div>
+            <div className="border border-slate-300 bg-white px-3 py-2 rounded-sm">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500">Научный руководитель</div>
+              <div className="font-serif text-sm text-slate-900">________________________</div>
+            </div>
+            <div className="border border-slate-300 bg-white px-3 py-2 rounded-sm flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">Режим работы</div>
+                <div className="font-serif text-sm text-slate-900">
+                  {useLocalMode ? 'Локальный (браузер)' : 'Серверный (PostgreSQL + GMM)'}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1 shrink-0">
                 <button
-                onClick={() => setActiveTab('login')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  onClick={() => { if (useLocalMode) toggleMode(); }}
+                  className={`px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-sm border transition-colors ${
+                    !useLocalMode ? 'bg-academy-700 text-white border-academy-700' : 'bg-white text-slate-500 border-slate-300 hover:border-academy-700'
+                  }`}
                 >
-                Вход
+                  Сервер
                 </button>
                 <button
-                onClick={() => setActiveTab('register')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                  onClick={() => { if (!useLocalMode) toggleMode(); }}
+                  className={`px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-sm border transition-colors ${
+                    useLocalMode ? 'bg-burgundy-600 text-white border-burgundy-600' : 'bg-white text-slate-500 border-slate-300 hover:border-burgundy-600'
+                  }`}
                 >
-                Регистрация
+                  Локально
                 </button>
-                <button
-                onClick={() => setActiveTab('testing')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'testing' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-                >
-                Тестирование (FAR/FRR)
-                </button>
-                <button
-                onClick={() => setActiveTab('continuous')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'continuous' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-                >
-                Непрерывная защита
-                </button>
-            </nav>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Section navigation */}
+        <nav className="bg-academy-800 border-t border-academy-900">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap gap-x-1 gap-y-0 overflow-x-auto hide-scrollbar">
+            {tabs.map(t => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`px-4 py-3 text-sm font-medium tracking-wide whitespace-nowrap border-b-2 transition-colors ${
+                    active
+                      ? 'border-parchment-100 text-white bg-academy-900/40'
+                      : 'border-transparent text-academy-100 hover:text-white hover:border-academy-200'
+                  }`}
+                >
+                  <span className="font-serif text-academy-200 mr-2">{t.numeral}.</span>
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 flex-1">
+        {(() => {
+          const cur = tabs.find(t => t.id === activeTab);
+          if (!cur) return null;
+          return (
+            <div className="mb-8">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-academy-700 font-semibold">
+                Раздел {cur.numeral}
+              </div>
+              <h2 className="font-serif text-2xl sm:text-[26px] font-bold text-slate-900 mt-1">
+                {cur.label}
+              </h2>
+              <div className="vkr-rule mt-3" />
+            </div>
+          );
+        })()}
+
         {/* VIEW: LOGIN */}
         {activeTab === 'login' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-4 space-y-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold mb-6">Вход в систему</h2>
+              <div className="bg-white p-6 vkr-card">
+                <h3 className="font-serif text-lg font-bold mb-6 text-slate-900">1.1.&nbsp;Контрольный ввод фразы</h3>
                 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Пользователь</label>
                     <input 
                       type="text" 
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-academy-500 outline-none"
                       placeholder="Имя пользователя"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
@@ -667,9 +710,9 @@ export default function App() {
                 )}
               </div>
               
-              <div className={`p-6 rounded-2xl border ${useLocalMode ? 'bg-orange-50 border-orange-100' : 'bg-indigo-50 border-indigo-100'}`}>
+              <div className={`p-6 rounded-md border ${useLocalMode ? 'bg-orange-50 border-orange-100' : 'bg-academy-50 border-academy-100'}`}>
                 <div className="flex justify-between items-center mb-4">
-                    <h4 className={`font-semibold text-sm flex items-center gap-2 ${useLocalMode ? 'text-orange-900' : 'text-indigo-900'}`}>
+                    <h4 className={`font-semibold text-sm flex items-center gap-2 ${useLocalMode ? 'text-orange-900' : 'text-academy-900'}`}>
                         <Database size={16} /> 
                         {useLocalMode ? 'Локальное хранилище (Браузер)' : 'PostgreSQL (Сервер)'}
                     </h4>
@@ -704,9 +747,9 @@ export default function App() {
                  <div className="space-y-6">
                    <BiometricVisualizer template={currentTemplate} currentAttempt={lastFeatures} />
                    {authResult && (
-                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                     <div className="bg-white p-6 vkr-card">
                         <div className="flex items-center gap-2 mb-4">
-                          <Activity className="text-indigo-500" size={20} />
+                          <Activity className="text-academy-500" size={20} />
                           <h3 className="text-lg font-bold text-gray-800">Метрики верификации (для ВКР)</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -736,7 +779,7 @@ export default function App() {
                    )}
                  </div>
               ) : (
-                <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-400">
+                <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-md border border-dashed border-slate-300 p-8 text-center text-gray-400">
                     <Activity size={48} className="mb-4 opacity-20" />
                     <p className="font-medium">Нет данных для визуализации</p>
                     <p className="text-sm mt-2 max-w-sm mx-auto">Введите имя пользователя и фразу, чтобы увидеть сравнение текущего почерка с эталоном.</p>
@@ -749,14 +792,14 @@ export default function App() {
         {/* VIEW: REGISTER */}
         {activeTab === 'register' && (
           <div className="max-w-2xl mx-auto">
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
+            <div className="bg-white p-8 rounded-md border border-slate-300 shadow-sm">
               <div className="text-center mb-8">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${useLocalMode ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${useLocalMode ? 'bg-orange-100 text-orange-600' : 'bg-academy-100 text-academy-700'}`}>
                   <UserPlus size={32} />
                 </div>
-                <h2 className="text-2xl font-bold">
-                    {useLocalMode ? 'Создание локального профиля' : 'Получение шаблона'}
-                </h2>
+                <h3 className="font-serif text-xl font-bold text-slate-900">
+                    {useLocalMode ? '2.1. Создание локального профиля' : '2.1. Сбор эталонных образцов'}
+                </h3>
                 <p className="text-gray-500 mt-2 text-sm">
                     {useLocalMode 
                         ? 'Статистический метод. Данные останутся в этом браузере.' 
@@ -769,7 +812,7 @@ export default function App() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Имя пользователя</label>
                   <input 
                     type="text" 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-indigo-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:border-academy-500"
                     placeholder="ivan_petrov"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -799,7 +842,7 @@ export default function App() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mb-6">
                     <div 
-                      className={`h-2 rounded-full transition-all duration-500 ${useLocalMode ? 'bg-orange-500' : 'bg-indigo-600'}`} 
+                      className={`h-2 rounded-full transition-all duration-500 ${useLocalMode ? 'bg-orange-500' : 'bg-academy-700'}`} 
                       style={{ width: `${(regStep / REQUIRED_SAMPLES) * 100}%` }}
                     ></div>
                   </div>
@@ -834,17 +877,17 @@ export default function App() {
         {activeTab === 'testing' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-5 space-y-6">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                  <Target className="text-indigo-600" />
-                  Симуляция атак
-                </h2>
+              <div className="bg-white p-6 vkr-card">
+                <h3 className="font-serif text-lg font-bold mb-6 flex items-center gap-2 text-slate-900">
+                  <Target className="text-academy-700" size={20} />
+                  3.1. Сценарий проведения испытаний
+                </h3>
                 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Целевой профиль (Кого проверяем)</label>
                     <select 
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-academy-500 outline-none bg-white"
                       value={testTarget}
                       onChange={(e) => setTestTarget(e.target.value)}
                     >
@@ -898,7 +941,7 @@ export default function App() {
 
             <div className="lg:col-span-7 space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <div className="bg-white p-5 vkr-card">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-sm font-medium text-gray-500">FAR (False Acceptance Rate)</h3>
                     <UserX className="text-red-400" size={20} />
@@ -911,7 +954,7 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                <div className="bg-white p-5 vkr-card">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-sm font-medium text-gray-500">FRR (False Rejection Rate)</h3>
                     <ShieldAlert className="text-orange-400" size={20} />
@@ -924,10 +967,10 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 col-span-2">
+                <div className="bg-white p-5 vkr-card col-span-2">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-sm font-medium text-gray-500">Общая точность (Accuracy)</h3>
-                    <Percent className="text-indigo-400" size={20} />
+                    <Percent className="text-academy-400" size={20} />
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold text-gray-900">{accuracy.toFixed(1)}%</span>
@@ -937,7 +980,7 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 col-span-2">
+                <div className="bg-white p-5 vkr-card col-span-2">
                   <h3 className="text-sm font-medium text-gray-500 mb-4">Дополнительные метрики качества (ML)</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
@@ -956,7 +999,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="bg-white p-6 vkr-card">
                 <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <BarChart size={16} /> История попыток
                 </h3>
@@ -1000,13 +1043,13 @@ export default function App() {
         {/* VIEW: CONTINUOUS AUTH */}
         {activeTab === 'continuous' && (
           <div className="max-w-4xl mx-auto">
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
+            <div className="bg-white p-8 rounded-md border border-slate-300 shadow-sm">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Shield className="text-indigo-600" />
-                    Непрерывная аутентификация
-                  </h2>
+                  <h3 className="font-serif text-xl font-bold flex items-center gap-2 text-slate-900">
+                    <Shield className="text-academy-700" size={22} />
+                    4.1. Сессионная проверка пользователя
+                  </h3>
                   <p className="text-gray-500 mt-1 text-sm">
                     Анализ почерка в фоновом режиме при наборе свободного текста.
                   </p>
@@ -1015,7 +1058,7 @@ export default function App() {
                 <div className="w-64">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Пользователь сессии</label>
                   <select 
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-academy-500 outline-none bg-white text-sm"
                     value={sessionUser}
                     onChange={(e) => setSessionUser(e.target.value)}
                   >
@@ -1035,7 +1078,7 @@ export default function App() {
               ) : (
                 <div className="space-y-6">
                   {/* Trust Level Indicator */}
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                  <div className="bg-white p-6 rounded-md border border-slate-300 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 opacity-30"></div>
                     <div className="flex justify-between items-end mb-4">
                       <div>
@@ -1066,8 +1109,8 @@ export default function App() {
                   {/* Text Area */}
                   <div className="relative">
                     {targetSessionText && (
-                      <div className="mb-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100 text-indigo-900 text-sm leading-relaxed shadow-inner">
-                        <p className="font-bold mb-2 text-indigo-800 flex items-center gap-2">
+                      <div className="mb-4 p-4 bg-academy-50 rounded-xl border border-academy-100 text-academy-900 text-sm leading-relaxed shadow-inner">
+                        <p className="font-bold mb-2 text-academy-800 flex items-center gap-2">
                           <Activity size={16} />
                           Перепечатайте следующий текст:
                         </p>
@@ -1097,7 +1140,7 @@ export default function App() {
                     )}
                     <textarea
                       className={`w-full h-64 p-4 border-2 rounded-xl outline-none resize-none transition-colors ${
-                        sessionLocked ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-indigo-500'
+                        sessionLocked ? 'border-red-300 bg-red-50' : 'border-gray-200 focus:border-academy-500'
                       }`}
                       placeholder="Начните печатать любой текст здесь (например, перепишите абзац из книги или напишите письмо)..."
                       value={sessionText}
@@ -1123,6 +1166,36 @@ export default function App() {
           </div>
         )}
       </main>
+
+      <footer className="border-t-2 border-academy-700 bg-white mt-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-600">
+          <div>
+            <div className="font-serif font-bold text-slate-900 mb-1">О работе</div>
+            <p className="leading-relaxed">
+              Прототип системы непрерывной биометрической аутентификации
+              на&nbsp;основе клавиатурного почерка (keystroke dynamics). Метод&nbsp;— смесь гауссовых распределений (GMM).
+            </p>
+          </div>
+          <div>
+            <div className="font-serif font-bold text-slate-900 mb-1">Программный стек</div>
+            <ul className="leading-relaxed space-y-0.5">
+              <li>Frontend: React&nbsp;19 + TypeScript&nbsp;+ Vite</li>
+              <li>Backend: FastAPI + PostgreSQL</li>
+              <li>Модель: scikit‑learn (GaussianMixture)</li>
+            </ul>
+          </div>
+          <div className="sm:text-right">
+            <div className="font-serif font-bold text-slate-900 mb-1">Год защиты</div>
+            <div>{new Date().getFullYear()}</div>
+            <div className="mt-2 italic">
+              «Клавиатурный почерк&nbsp;— уникальная поведенческая характеристика пользователя»
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-slate-200 py-3 text-center text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          Выпускная квалификационная работа · Прототип программного комплекса
+        </div>
+      </footer>
     </div>
   );
 }

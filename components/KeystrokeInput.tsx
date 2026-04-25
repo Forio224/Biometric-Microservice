@@ -142,7 +142,7 @@ export const KeystrokeInput: React.FC<Props> = ({
       {isPassword ? (
         <input
           type={showPassword ? "text" : "password"}
-          className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none relative z-20 bg-transparent ${
+          className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:ring-2 focus:ring-academy-500 focus:border-academy-700 transition-all outline-none relative z-20 bg-transparent ${
             disabled ? 'bg-gray-100 text-gray-400' : 'text-gray-900 border-gray-300'
           }`}
           placeholder={value ? "" : placeholder}
@@ -166,7 +166,7 @@ export const KeystrokeInput: React.FC<Props> = ({
       ) : (
         <textarea
           ref={textareaRef}
-          className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none relative z-20 bg-transparent resize-none min-h-[100px] ${
+          className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:ring-2 focus:ring-academy-500 focus:border-academy-700 transition-all outline-none relative z-20 bg-transparent resize-none min-h-[100px] ${
             disabled ? 'bg-gray-100 text-gray-400' : 'text-gray-900 border-gray-300'
           }`}
           placeholder={value ? "" : placeholder}

@@ -120,7 +120,7 @@ export const BiometricVisualizer: React.FC<Props> = ({ template, currentAttempt 
       {currentAttempt && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="w-2 h-6 bg-indigo-500 rounded-full"></span>
+            <span className="w-2 h-6 bg-academy-700 rounded-full"></span>
             Сводка текущей попытки
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
