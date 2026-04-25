@@ -180,16 +180,18 @@ export default function App() {
     checkServer();
 
     // Очистка старых шаблонов, если они не содержат глобальных признаков
-    const localUsers = ApiService.getUsers();
-    if (localUsers.length > 0) {
-      ApiService.getTemplate(localUsers[0].username).then(tpl => {
-        if (tpl && tpl.globalDwellMean === undefined) {
-          console.warn("Обнаружены устаревшие шаблоны. Очистка базы данных...");
-          ApiService.clearLocalDb();
-          window.location.reload();
-        }
-      }).catch(() => {});
-    }
+    ApiService.getUsers()
+      .then((localUsers) => {
+        if (localUsers.length === 0) return;
+        return ApiService.getTemplate(localUsers[0].username).then((tpl) => {
+          if (tpl && tpl.globalDwellMean === undefined) {
+            console.warn("Обнаружены устаревшие шаблоны. Очистка базы данных...");
+            ApiService.clearLocalDb();
+            window.location.reload();
+          }
+        });
+      })
+      .catch(() => {});
 
     const interval = setInterval(() => {
         if (!useLocalMode) checkServer();

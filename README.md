@@ -1,20 +1,23 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Biometric Microservice
 
-# Run and deploy your AI Studio app
+Проект состоит из двух частей:
+- Frontend: React + Vite
+- Backend: FastAPI + PostgreSQL + GMM
 
-This contains everything you need to run your app locally.
+## Локальный запуск
 
-View your app in AI Studio: https://ai.studio/apps/6c7ac018-c13d-438d-9a6f-abb58da94e9f
+### 1) Frontend
+1. Установите зависимости: `npm install`
+2. Запустите dev-сервер: `npm run dev`
 
-## Run Locally
+### 2) Backend
+1. Создайте и активируйте виртуальное окружение Python
+2. Установите зависимости: `pip install -r requirements.txt`
+3. Скопируйте `.env.example` в `.env` и настройте значения
+4. Запустите API: `uvicorn main:app --reload --port 8000`
 
-**Prerequisites:**  Node.js
+## Конфигурация
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- `DATABASE_URL` - строка подключения к PostgreSQL
+- `ALLOWED_ORIGINS` - список origin для CORS (JSON-массив)
+- `VERIFY_RATE_LIMIT_PER_MINUTE` - лимит попыток верификации в минуту
