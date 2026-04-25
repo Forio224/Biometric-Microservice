@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { RawKeyEvent } from '../types';
 import { Eye, EyeOff, Keyboard } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Props {
   value: string;
@@ -22,6 +23,7 @@ export const KeystrokeInput: React.FC<Props> = ({
   const [showPassword, setShowPassword] = useState(!isPassword);
   const eventsRef = useRef<RawKeyEvent[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastBlockedToastAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (value === '') {
@@ -32,7 +34,28 @@ export const KeystrokeInput: React.FC<Props> = ({
     }
   }, [value]);
   
+  const notifyBlockedInput = () => {
+    const now = Date.now();
+    if (now - lastBlockedToastAtRef.current < 1500) return;
+    lastBlockedToastAtRef.current = now;
+    toast.warning("Вставка отключена: введите фразу вручную для корректного шаблона.");
+  };
+
+  const isPasteShortcut = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const key = e.key.toLowerCase();
+    return (
+      ((e.ctrlKey || e.metaKey) && (key === 'v' || key === 'x')) ||
+      (e.shiftKey && e.key === 'Insert')
+    );
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (isPasteShortcut(e)) {
+      e.preventDefault();
+      notifyBlockedInput();
+      return;
+    }
+
     // Игнорируем автоповтор клавиш (когда пользователь зажимает клавишу)
     if (e.repeat) return;
     
@@ -84,6 +107,22 @@ export const KeystrokeInput: React.FC<Props> = ({
     }
   };
 
+  const blockNonTypingInput = (
+    e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement> & { nativeEvent: InputEvent }
+  ) => {
+    const inputType = e.nativeEvent.inputType;
+    if (
+      inputType === 'insertFromPaste' ||
+      inputType === 'insertFromDrop' ||
+      inputType === 'insertReplacementText' ||
+      inputType === 'historyUndo' ||
+      inputType === 'historyRedo'
+    ) {
+      e.preventDefault();
+      notifyBlockedInput();
+    }
+  };
+
   return (
     <div className="relative w-full bg-white rounded-lg">
       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-20">
@@ -111,6 +150,15 @@ export const KeystrokeInput: React.FC<Props> = ({
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           onChange={handleChange}
+          onPaste={(e) => {
+            e.preventDefault();
+            notifyBlockedInput();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            notifyBlockedInput();
+          }}
+          onBeforeInput={blockNonTypingInput}
           disabled={disabled}
           autoComplete="off"
           spellCheck="false"
@@ -126,6 +174,15 @@ export const KeystrokeInput: React.FC<Props> = ({
           onKeyDown={(e) => handleKeyDown(e as any)}
           onKeyUp={(e) => handleKeyUp(e as any)}
           onChange={(e) => handleChange(e as any)}
+          onPaste={(e) => {
+            e.preventDefault();
+            notifyBlockedInput();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            notifyBlockedInput();
+          }}
+          onBeforeInput={(e) => blockNonTypingInput(e as any)}
           disabled={disabled}
           autoComplete="off"
           spellCheck="false"

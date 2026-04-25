@@ -59,6 +59,14 @@ export default function App() {
   const [sessionTrust, setSessionTrust] = useState<number>(100);
   const [sessionLocked, setSessionLocked] = useState<boolean>(false);
   const sessionBufferRef = React.useRef<RawKeyEvent[]>([]);
+  const lastSessionBlockedToastAtRef = React.useRef<number>(0);
+
+  const notifySessionBlockedInput = () => {
+    const now = Date.now();
+    if (now - lastSessionBlockedToastAtRef.current < 1500) return;
+    lastSessionBlockedToastAtRef.current = now;
+    toast.warning("Вставка отключена: для непрерывной проверки используйте только ручной ввод.");
+  };
 
   useEffect(() => {
     if (sessionUser) {
@@ -79,11 +87,33 @@ export default function App() {
 
   const handleSessionKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (sessionLocked) { e.preventDefault(); return; }
+    if (
+      ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'v' || e.key.toLowerCase() === 'x')) ||
+      (e.shiftKey && e.key === 'Insert')
+    ) {
+      e.preventDefault();
+      notifySessionBlockedInput();
+      return;
+    }
     if (e.repeat) return; // Игнорируем автоповтор
     if (e.key === 'Tab' || e.key === 'Shift') return; // Игнорируем системные клавиши
     const event: RawKeyEvent = { type: 'keydown', key: e.key, code: e.code, timestamp: performance.now() };
     processSessionEvent(event);
   };
+  const handleSessionBeforeInput = (e: React.FormEvent<HTMLTextAreaElement> & { nativeEvent: InputEvent }) => {
+    const inputType = e.nativeEvent.inputType;
+    if (
+      inputType === 'insertFromPaste' ||
+      inputType === 'insertFromDrop' ||
+      inputType === 'insertReplacementText' ||
+      inputType === 'historyUndo' ||
+      inputType === 'historyRedo'
+    ) {
+      e.preventDefault();
+      notifySessionBlockedInput();
+    }
+  };
+
 
   const handleSessionKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (sessionLocked) { e.preventDefault(); return; }
@@ -989,6 +1019,15 @@ export default function App() {
                       onChange={(e) => setSessionText(e.target.value)}
                       onKeyDown={handleSessionKeyDown}
                       onKeyUp={handleSessionKeyUp}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        notifySessionBlockedInput();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        notifySessionBlockedInput();
+                      }}
+                      onBeforeInput={handleSessionBeforeInput}
                       disabled={sessionLocked}
                       spellCheck="false"
                     ></textarea>
