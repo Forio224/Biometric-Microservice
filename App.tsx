@@ -349,7 +349,7 @@ export default function App() {
     }
 
     const features = extractFeatures(events);
-    const validationError = validateFeatures(features, TEST_PHRASE.length);
+    const validationError = validateFeatures(features, TEST_PHRASE.length, 'registration');
     if (validationError) {
       setInputError(validationError);
       setInputPhrase('');
@@ -397,7 +397,7 @@ export default function App() {
     }
 
     const features = extractFeatures(events);
-    const validationError = validateFeatures(features, TEST_PHRASE.length);
+    const validationError = validateFeatures(features, TEST_PHRASE.length, 'auth');
     if (validationError) {
       setInputError(validationError);
       setInputPhrase('');
@@ -450,7 +450,7 @@ export default function App() {
     }
     
     const features = extractFeatures(events);
-    const validationError = validateFeatures(features, TEST_PHRASE.length);
+    const validationError = validateFeatures(features, TEST_PHRASE.length, 'auth');
     if (validationError) {
       setInputError(validationError);
       setInputPhrase('');

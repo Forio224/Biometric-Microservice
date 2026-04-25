@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -21,6 +21,7 @@ interface Props {
 }
 
 export const BiometricVisualizer: React.FC<Props> = ({ template, currentAttempt }) => {
+  const [flightViewMode, setFlightViewMode] = useState<'top' | 'phrase'>('top');
   const getStatusByZ = (z: number | null) => {
     if (z === null) return 'no-data';
     if (Math.abs(z) <= 1.5) return 'normal';
@@ -91,9 +92,14 @@ export const BiometricVisualizer: React.FC<Props> = ({ template, currentAttempt 
     };
   });
 
-  const flightData = flightRaw
-    .sort((a, b) => b.absZ - a.absZ)
-    .slice(0, 12);
+  const flightData = useMemo(() => {
+    if (flightViewMode === 'phrase') {
+      return flightRaw.slice(0, 12);
+    }
+    return [...flightRaw]
+      .sort((a, b) => b.absZ - a.absZ)
+      .slice(0, 12);
+  }, [flightRaw, flightViewMode]);
 
   const combinedZ = [...dwellData, ...flightRaw]
     .map(item => item.z)
@@ -194,8 +200,32 @@ export const BiometricVisualizer: React.FC<Props> = ({ template, currentAttempt 
            Ритм набора (Flight Time / Digraphs)
         </h3>
         <p className="text-sm text-gray-500 mb-6">
-          Показаны 12 диграфов с максимальным отклонением от эталона: это самые диагностичные точки.
+          Режим визуализации переключается: самые отклоняющиеся диграфы или исходный порядок.
         </p>
+        <div className="mb-4 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => setFlightViewMode('top')}
+            className={`px-3 py-1.5 text-sm rounded-md transition ${
+              flightViewMode === 'top'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Топ по отклонению
+          </button>
+          <button
+            type="button"
+            onClick={() => setFlightViewMode('phrase')}
+            className={`px-3 py-1.5 text-sm rounded-md transition ${
+              flightViewMode === 'phrase'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Исходный порядок
+          </button>
+        </div>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={flightData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>

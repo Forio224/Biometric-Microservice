@@ -73,8 +73,24 @@ export const extractFeatures = (events: RawKeyEvent[]): KeystrokeFeatures => {
   };
 };
 
+const MODIFIER_KEYS = ['Control', 'Alt', 'Meta', 'Shift', 'CapsLock', 'Tab'];
+
+const isSuspiciousKeyCode = (code: string) => {
+  if (!code || !code.trim()) return true;
+  return MODIFIER_KEYS.some(prefix => code.startsWith(prefix));
+};
+
+const isBrokenDigraph = (digraph: string) => {
+  const [left, right] = digraph.split('->');
+  return !left || !left.trim() || !right || !right.trim();
+};
+
 // Валидация извлеченных признаков (защита от ботов, копипаста и аномалий)
-export const validateFeatures = (features: KeystrokeFeatures, expectedLength: number): string | null => {
+export const validateFeatures = (
+  features: KeystrokeFeatures,
+  expectedLength: number,
+  mode: 'registration' | 'auth' = 'auth'
+): string | null => {
   if (features.totalDuration < 500) return "Слишком быстрый ввод (подозрение на копирование или бота).";
   if (features.totalDuration > 30000) return "Слишком медленный ввод. Пожалуйста, печатайте в естественном темпе.";
   
@@ -88,6 +104,37 @@ export const validateFeatures = (features: KeystrokeFeatures, expectedLength: nu
   // Если больше половины переходов происходят почти мгновенно - это подозрительно
   if (flightValues.length > 0 && nearZeroFlights > flightValues.length * 0.6) {
     return "Аномальный ритм переходов (подозрение на автоматический ввод).";
+  }
+
+  // Дополнительные правила для регистрации: шаблон должен быть чистым и репрезентативным.
+  if (mode === 'registration') {
+    const dwellKeys = Object.keys(features.dwellTimes);
+    const flightKeys = Object.keys(features.flightTimes);
+    const suspiciousDwells = dwellKeys.filter(isSuspiciousKeyCode).length;
+    const suspiciousFlights = flightKeys.filter(key => {
+      if (isBrokenDigraph(key)) return true;
+      const [left, right] = key.split('->');
+      return isSuspiciousKeyCode(left) || isSuspiciousKeyCode(right);
+    }).length;
+
+    if (suspiciousDwells > 0 || suspiciousFlights > 0) {
+      return "Обнаружены служебные/неполные клавиши в шаблоне. Печатайте только целевую фразу без системных сочетаний.";
+    }
+
+    const extremeDwells = dwellValues.filter(t => t < 15 || t > 1200).length;
+    const extremeFlights = flightValues.filter(t => t < -150 || t > 1500).length;
+    if (extremeDwells > Math.max(2, dwellValues.length * 0.2) || extremeFlights > Math.max(3, flightValues.length * 0.25)) {
+      return "Слишком много аномальных интервалов. Повторите ввод в естественном темпе.";
+    }
+
+    const minTyped = Math.max(4, Math.floor(expectedLength * 0.6));
+    if ((features.typedChars ?? 0) < minTyped) {
+      return "Недостаточно валидных символов для надежного обучения шаблона.";
+    }
+
+    if ((features.correctionRate ?? 0) > 0.45) {
+      return "Слишком много исправлений в вводе. Для регистрации нужна более стабильная попытка.";
+    }
   }
 
   return null;
