@@ -1,7 +1,12 @@
 import { KeystrokeFeatures, RegistrationResponse, UserSummary, VerificationResponse } from '../types';
 import { StorageService } from './storageService';
 
-const API_URL = 'http://localhost:8000';
+// In single-container deployment frontend and backend share one origin (API_URL = '').
+// For local development from Vite dev server we keep explicit localhost backend.
+const isLocalBrowserHost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const API_URL = isLocalBrowserHost ? 'http://localhost:8000' : '';
 
 const formatApiError = (err: any, fallback: string): string => {
   if (!err) return fallback;
