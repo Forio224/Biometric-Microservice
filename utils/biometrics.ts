@@ -1,11 +1,24 @@
 import { RawKeyEvent, KeystrokeFeatures, UserTemplate } from '../types';
 
+const average = (arr: number[]) => (arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+
+const robustMean = (arr: number[]): number => {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const trim = Math.floor(sorted.length * 0.1);
+  const core = sorted.slice(trim, sorted.length - trim);
+  return average(core.length > 0 ? core : sorted);
+};
+
 // Преобразование "сырых" событий клавиатуры в вектор признаков
 export const extractFeatures = (events: RawKeyEvent[]): KeystrokeFeatures => {
   const dwellTimes: Record<string, number> = {};
   const flightTimes: Record<string, number> = {};
   const globalDwells: number[] = [];
   const globalFlights: number[] = [];
+  let typedChars = 0;
+  let backspaceCount = 0;
+  let deleteCount = 0;
   
   // Сортировка по времени
   const sortedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp);
@@ -18,6 +31,10 @@ export const extractFeatures = (events: RawKeyEvent[]): KeystrokeFeatures => {
 
   sortedEvents.forEach((event) => {
     if (event.type === 'keydown') {
+      if (event.key === 'Backspace') backspaceCount++;
+      if (event.key === 'Delete') deleteCount++;
+      if (event.key.length === 1) typedChars++;
+
       downMap[event.code] = event.timestamp;
       
       if (previousKey && previousUpTimestamp !== null) {
@@ -41,13 +58,18 @@ export const extractFeatures = (events: RawKeyEvent[]): KeystrokeFeatures => {
 
   const startTime = sortedEvents[0]?.timestamp || 0;
   const endTime = sortedEvents[sortedEvents.length - 1]?.timestamp || 0;
+  const correctionRate = (backspaceCount + deleteCount) / Math.max(typedChars, 1);
 
   return {
     totalDuration: endTime - startTime,
     dwellTimes,
     flightTimes,
     globalDwells,
-    globalFlights
+    globalFlights,
+    typedChars,
+    backspaceCount,
+    deleteCount,
+    correctionRate,
   };
 };
 
@@ -131,6 +153,9 @@ export const createTemplate = (samples: KeystrokeFeatures[], phrase: string): Us
   
   const globalFlightMean = mean(allGlobalFlights);
   const globalFlightStd = Math.max(stdDev(allGlobalFlights, globalFlightMean), 10); // min 10ms variance
+  const correctionRates = samples.map(s => s.correctionRate ?? 0);
+  const correctionRateMean = mean(correctionRates);
+  const correctionRateStd = Math.max(stdDev(correctionRates, correctionRateMean), 0.02);
 
   // 5. Установка порога для GMM (Log-Likelihood threshold)
   // Для GMM порог обычно подбирается. Здесь мы будем использовать нормализованный Log-Likelihood.
@@ -147,6 +172,8 @@ export const createTemplate = (samples: KeystrokeFeatures[], phrase: string): Us
     globalDwellStd,
     globalFlightMean,
     globalFlightStd,
+    correctionRateMean,
+    correctionRateStd,
     threshold,
   };
 };
@@ -154,10 +181,10 @@ export const createTemplate = (samples: KeystrokeFeatures[], phrase: string): Us
 // Верификация для непрерывной аутентификации (Свободный текст)
 // Использует Z-оценку глобальных признаков + GMM для конкретных совпавших клавиш
 export const verifyContinuous = (features: KeystrokeFeatures, template: UserTemplate): { score: number, isMatch: boolean, matchedCount: number, anomalyScore: number } => {
-  const mean = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-  const currentDwellMean = mean(features.globalDwells || []);
-  const currentFlightMean = mean(features.globalFlights || []);
+  const filteredDwells = (features.globalDwells || []).filter(v => Number.isFinite(v) && v >= 10 && v <= 2000);
+  const filteredFlights = (features.globalFlights || []).filter(v => Number.isFinite(v) && v >= -300 && v <= 2000);
+  const currentDwellMean = robustMean(filteredDwells);
+  const currentFlightMean = robustMean(filteredFlights);
 
   // Если данных совсем нет или шаблон старый (без глобальных признаков)
   if (isNaN(currentDwellMean) || isNaN(currentFlightMean) || template.globalDwellMean === undefined || template.globalFlightMean === undefined) {
@@ -168,6 +195,11 @@ export const verifyContinuous = (features: KeystrokeFeatures, template: UserTemp
   const zDwell = Math.abs(currentDwellMean - template.globalDwellMean) / (template.globalDwellStd || 1);
   const zFlight = Math.abs(currentFlightMean - template.globalFlightMean) / (template.globalFlightStd || 1);
   const globalAnomaly = (zDwell + zFlight) / 2;
+  const currentCorrectionRate = features.correctionRate ?? 0;
+  const correctionRateAnomaly =
+    template.correctionRateMean !== undefined
+      ? Math.abs(currentCorrectionRate - template.correctionRateMean) / (template.correctionRateStd || 0.02)
+      : globalAnomaly;
 
   // 2. Оценка конкретных клавиш (если есть совпадения)
   let specificAnomaly = 0;
@@ -198,12 +230,17 @@ export const verifyContinuous = (features: KeystrokeFeatures, template: UserTemp
   });
 
   const avgSpecificAnomaly = specificCount > 0 ? specificAnomaly / specificCount : globalAnomaly;
+  // Уверенность specific-части зависит от числа совпавших признаков:
+  // при малом числе совпадений она должна иметь меньший вес.
+  const specificConfidence = Math.min(1, specificCount / 25);
+  const specificWeight = 0.25 + specificConfidence * 0.5; // 0.25 ... 0.75
+  const globalWeight = 1 - specificWeight;
 
   // 3. Итоговая аномальность (смешиваем глобальный ритм и конкретные клавиши)
-  // Если есть совпадения конкретных клавиш, даем им больший вес
-  const finalAnomaly = specificCount > 0 
-    ? (globalAnomaly * 0.4) + (avgSpecificAnomaly * 0.6)
-    : globalAnomaly;
+  const finalAnomaly =
+    (globalAnomaly * globalWeight * 0.8) +
+    (avgSpecificAnomaly * specificWeight * 0.8) +
+    (correctionRateAnomaly * 0.2);
 
   // Если отклонение больше 1.8 сигм - это аномалия (чужой почерк)
   const isMatch = finalAnomaly < 1.8;
@@ -255,9 +292,15 @@ export const verifyUser = (features: KeystrokeFeatures, template: UserTemplate):
 
   // Нормализованная оценка (средний log-likelihood на один признак)
   const finalScore = logLikelihood / featuresCount;
+  const correctionRate = features.correctionRate ?? 0;
+  const correctionMean = template.correctionRateMean ?? 0;
+  const correctionStd = template.correctionRateStd ?? 0.02;
+  const correctionZ = Math.abs(correctionRate - correctionMean) / correctionStd;
+  const correctionPenalty = Math.min(2.5, correctionZ) * 0.35;
+  const blendedScore = finalScore - correctionPenalty;
   
   // В GMM чем ВЫШЕ score (ближе к 0), тем лучше совпадение
-  const isMatch = finalScore > template.threshold;
+  const isMatch = blendedScore > template.threshold;
 
-  return { score: finalScore, isMatch };
+  return { score: blendedScore, isMatch };
 };

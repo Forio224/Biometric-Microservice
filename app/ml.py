@@ -16,6 +16,7 @@ def extract_feature_vector(
         vec.append(sample.dwellTimes.get(key, 0.0))
     for key in flight_keys:
         vec.append(sample.flightTimes.get(key, 0.0))
+    vec.append(sample.correctionRate or 0.0)
     return np.array(vec)
 
 
@@ -58,6 +59,9 @@ def create_template(samples: List[KeystrokeFeatures]) -> dict:
     baseline_ll = float(np.mean(scores))
     std_ll = float(np.std(scores))
     threshold = baseline_ll - max(3.0 * std_ll, abs(baseline_ll) * 0.1)
+    correction_rates = [s.correctionRate or 0.0 for s in samples]
+    correction_rate_mean = float(np.mean(correction_rates))
+    correction_rate_std = float(np.std(correction_rates)) if len(correction_rates) > 1 else 0.02
 
     return {
         "phrase": "test_phrase",
@@ -74,6 +78,8 @@ def create_template(samples: List[KeystrokeFeatures]) -> dict:
         "threshold": threshold,
         "baseline_ll": baseline_ll,
         "std_ll": std_ll,
+        "correction_rate_mean": correction_rate_mean,
+        "correction_rate_std": correction_rate_std,
     }
 
 
@@ -92,6 +98,7 @@ def calculate_score(sample: KeystrokeFeatures, template: dict, recent_samples: L
             vec.append(sample_dict.get("dwellTimes", {}).get(key, 0.0))
         for key in flight_keys:
             vec.append(sample_dict.get("flightTimes", {}).get(key, 0.0))
+        vec.append(sample_dict.get("correctionRate", 0.0))
         X.append(vec)
 
     X = np.array(X)

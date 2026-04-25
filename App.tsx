@@ -23,6 +23,15 @@ const CONTINUOUS_TEXTS = [
   "Клавиатурный почерк является уникальной поведенческой характеристикой человека. Он зависит от физиологических особенностей строения рук и моторики пальцев, что делает его надежным фактором защиты.",
   "Непрерывная аутентификация позволяет системе постоянно проверять личность пользователя в фоновом режиме. Если за компьютер сядет злоумышленник, система мгновенно заблокирует доступ к конфиденциальной информации."
 ];
+const SESSION_ANALYZE_WINDOW = 30;
+const SESSION_ANALYZE_STEP = 10;
+const SESSION_MIN_DWELL_COUNT = 10;
+const SESSION_MIN_FLIGHT_COUNT = 6;
+const SESSION_MAX_BUFFER = 220;
+const SESSION_KEEP_BUFFER = 120;
+const SESSION_POOR_WINDOW_LOCK_STREAK = 5;
+const REPEAT_BURST_COUNT = 12;
+const REPEAT_BURST_WINDOW_MS = 1200;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'testing' | 'continuous'>('login');
@@ -59,6 +68,12 @@ export default function App() {
   const [sessionTrust, setSessionTrust] = useState<number>(100);
   const [sessionLocked, setSessionLocked] = useState<boolean>(false);
   const sessionBufferRef = React.useRef<RawKeyEvent[]>([]);
+  const poorWindowStreakRef = React.useRef<number>(0);
+  const repeatBurstRef = React.useRef<{ key: string; count: number; firstTs: number }>({
+    key: '',
+    count: 0,
+    firstTs: 0,
+  });
   const lastSessionBlockedToastAtRef = React.useRef<number>(0);
 
   const notifySessionBlockedInput = () => {
@@ -78,6 +93,8 @@ export default function App() {
         // Выбираем случайный текст для перепечатывания
         setTargetSessionText(CONTINUOUS_TEXTS[Math.floor(Math.random() * CONTINUOUS_TEXTS.length)]);
         sessionBufferRef.current = [];
+        poorWindowStreakRef.current = 0;
+        repeatBurstRef.current = { key: '', count: 0, firstTs: 0 };
       }).catch(err => console.error("Failed to load template for session", err));
     } else {
       setSessionTemplate(null);
@@ -95,8 +112,39 @@ export default function App() {
       notifySessionBlockedInput();
       return;
     }
-    if (e.repeat) return; // Игнорируем автоповтор
-    if (e.key === 'Tab' || e.key === 'Shift') return; // Игнорируем системные клавиши
+    if (e.repeat) {
+      const now = performance.now();
+      const prev = repeatBurstRef.current;
+      if (prev.key === e.code && now - prev.firstTs <= REPEAT_BURST_WINDOW_MS) {
+        repeatBurstRef.current = { ...prev, count: prev.count + 1 };
+      } else {
+        repeatBurstRef.current = { key: e.code, count: 1, firstTs: now };
+      }
+
+      if (repeatBurstRef.current.count >= REPEAT_BURST_COUNT) {
+        setSessionTrust((trust) => {
+          const next = Math.max(0, trust - 35);
+          if (next <= 0) setSessionLocked(true);
+          return next;
+        });
+      }
+      return;
+    }
+    repeatBurstRef.current = { key: '', count: 0, firstTs: 0 };
+    if (
+      e.key === 'Tab' ||
+      e.key === 'Shift' ||
+      e.key === 'Control' ||
+      e.key === 'Alt' ||
+      e.key === 'Meta' ||
+      e.key === 'CapsLock' ||
+      e.key === 'Escape' ||
+      e.key.startsWith('Arrow') ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.key === 'PageUp' ||
+      e.key === 'PageDown'
+    ) return;
     const event: RawKeyEvent = { type: 'keydown', key: e.key, code: e.code, timestamp: performance.now() };
     processSessionEvent(event);
   };
@@ -117,7 +165,21 @@ export default function App() {
 
   const handleSessionKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (sessionLocked) { e.preventDefault(); return; }
-    if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Enter') return;
+    if (
+      e.key === 'Tab' ||
+      e.key === 'Shift' ||
+      e.key === 'Enter' ||
+      e.key === 'Control' ||
+      e.key === 'Alt' ||
+      e.key === 'Meta' ||
+      e.key === 'CapsLock' ||
+      e.key === 'Escape' ||
+      e.key.startsWith('Arrow') ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.key === 'PageUp' ||
+      e.key === 'PageDown'
+    ) return;
     const event: RawKeyEvent = { type: 'keyup', key: e.key, code: e.code, timestamp: performance.now() };
     processSessionEvent(event);
   };
@@ -125,13 +187,30 @@ export default function App() {
   const processSessionEvent = (event: RawKeyEvent) => {
     sessionBufferRef.current.push(event);
 
-    // Анализируем каждые 20 событий (около 10 нажатий клавиш), используя скользящее окно из последних 40 событий
-    if (sessionBufferRef.current.length >= 40 && sessionTemplate) {
-      if (sessionBufferRef.current.length % 20 === 0) {
-        // Берем последние 40 событий для анализа
-        const bufferToAnalyze = sessionBufferRef.current.slice(-40);
+    // Анализируем чаще и меньшими окнами для более быстрого отклика.
+    if (sessionBufferRef.current.length >= SESSION_ANALYZE_WINDOW && sessionTemplate) {
+      if (sessionBufferRef.current.length % SESSION_ANALYZE_STEP === 0) {
+        const bufferToAnalyze = sessionBufferRef.current.slice(-SESSION_ANALYZE_WINDOW);
 
         const features = extractFeatures(bufferToAnalyze);
+        const dwellCount = Object.keys(features.dwellTimes).length;
+        const flightCount = Object.keys(features.flightTimes).length;
+        if (dwellCount < SESSION_MIN_DWELL_COUNT || flightCount < SESSION_MIN_FLIGHT_COUNT) {
+          poorWindowStreakRef.current += 1;
+          const streak = poorWindowStreakRef.current;
+          const penalty = Math.min(20, 6 + streak * 2);
+          setSessionTrust((prev) => {
+            const next = Math.max(0, prev - penalty);
+            if (next <= 0 || streak >= SESSION_POOR_WINDOW_LOCK_STREAK) {
+              setSessionLocked(true);
+              return 0;
+            }
+            return next;
+          });
+          return;
+        }
+        poorWindowStreakRef.current = 0;
+
         const result = verifyContinuous(features, sessionTemplate);
 
         // Обновляем доверие всегда, когда есть данные (даже если specificCount = 0, у нас есть globalAnomaly)
@@ -166,8 +245,8 @@ export default function App() {
       }
       
       // Ограничиваем размер буфера, чтобы не рос бесконечно
-      if (sessionBufferRef.current.length > 200) {
-        sessionBufferRef.current = sessionBufferRef.current.slice(-100);
+      if (sessionBufferRef.current.length > SESSION_MAX_BUFFER) {
+        sessionBufferRef.current = sessionBufferRef.current.slice(-SESSION_KEEP_BUFFER);
       }
     }
   };
@@ -1003,6 +1082,8 @@ export default function App() {
                             setSessionLocked(false);
                             setSessionText('');
                             sessionBufferRef.current = [];
+                            poorWindowStreakRef.current = 0;
+                            repeatBurstRef.current = { key: '', count: 0, firstTs: 0 };
                           }}
                           className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium text-sm flex items-center gap-2"
                         >

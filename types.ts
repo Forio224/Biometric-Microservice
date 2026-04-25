@@ -13,6 +13,10 @@ export interface KeystrokeFeatures {
   flightTimes: Record<string, number>;
   globalDwells?: number[];
   globalFlights?: number[];
+  typedChars?: number;
+  backspaceCount?: number;
+  deleteCount?: number;
+  correctionRate?: number;
 }
 
 // Ответ от сервера при верификации
@@ -60,5 +64,7 @@ export interface UserTemplate {
   globalDwellStd?: number;
   globalFlightMean?: number;
   globalFlightStd?: number;
+  correctionRateMean?: number;
+  correctionRateStd?: number;
   threshold: number;
 }

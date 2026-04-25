@@ -9,6 +9,10 @@ class KeystrokeFeatures(BaseModel):
     flightTimes: Dict[str, float]
     globalDwells: Optional[List[float]] = None
     globalFlights: Optional[List[float]] = None
+    typedChars: Optional[int] = Field(default=0, ge=0)
+    backspaceCount: Optional[int] = Field(default=0, ge=0)
+    deleteCount: Optional[int] = Field(default=0, ge=0)
+    correctionRate: Optional[float] = Field(default=0.0, ge=0.0, le=1.0)
 
     @field_validator("dwellTimes", "flightTimes")
     @classmethod
