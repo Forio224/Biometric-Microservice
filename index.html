@@ -3,11 +3,197 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BioAuth - Клавиатурный почерк</title>
+    <title>KeystrokeID — биометрическая аутентификация по клавиатурному почерку</title>
+    <meta name="description" content="Прототип системы биометрической аутентификации на основе клавиатурного почерка. Демонстрация для ВКР." />
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              display: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+            },
+            colors: {
+              ink: {
+                50:  '#f6f8fc',
+                100: '#eef2fa',
+                200: '#dde4f1',
+                300: '#c4cee0',
+                400: '#9aa8c4',
+                500: '#6b7a99',
+                600: '#475370',
+                700: '#2f3855',
+                800: '#1d2540',
+                900: '#0f1628',
+              },
+              brand: {
+                50:  '#eef4ff',
+                100: '#dde9ff',
+                200: '#bcd4ff',
+                300: '#8eb4ff',
+                400: '#5b8bff',
+                500: '#3266ff',
+                600: '#1f4ae0',
+                700: '#1a3bb0',
+                800: '#152d85',
+                900: '#0f205c',
+              },
+              accent: {
+                50:  '#ecfeff',
+                100: '#cffafe',
+                200: '#a5f3fc',
+                300: '#67e8f9',
+                400: '#22d3ee',
+                500: '#06b6d4',
+                600: '#0891b2',
+                700: '#0e7490',
+              },
+              success: {
+                500: '#10b981',
+                600: '#059669',
+              },
+              danger: {
+                500: '#ef4444',
+                600: '#dc2626',
+              },
+              warning: {
+                500: '#f59e0b',
+                600: '#d97706',
+              },
+            },
+            boxShadow: {
+              glass: '0 1px 0 0 rgba(255,255,255,0.6) inset, 0 8px 28px -10px rgba(31,74,224,0.18)',
+              glow: '0 0 0 4px rgba(50,102,255,0.12), 0 12px 32px -8px rgba(50,102,255,0.35)',
+              soft: '0 1px 2px rgba(15,22,40,0.04), 0 8px 24px -12px rgba(15,22,40,0.10)',
+            },
+            backgroundImage: {
+              'grid-soft':
+                'linear-gradient(to right, rgba(31,74,224,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(31,74,224,0.06) 1px, transparent 1px)',
+              'aurora':
+                'radial-gradient(60% 50% at 15% 10%, rgba(50,102,255,0.18) 0%, transparent 60%), radial-gradient(50% 40% at 90% 20%, rgba(34,211,238,0.18) 0%, transparent 60%), radial-gradient(50% 50% at 80% 90%, rgba(99,102,241,0.12) 0%, transparent 60%)',
+            },
+            keyframes: {
+              'pulse-ring': {
+                '0%':   { transform: 'scale(0.9)', opacity: '0.6' },
+                '70%':  { transform: 'scale(1.6)', opacity: '0' },
+                '100%': { transform: 'scale(1.6)', opacity: '0' },
+              },
+              'scan': {
+                '0%':   { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(2200%)' },
+              },
+              'shimmer': {
+                '0%':   { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              },
+              'float': {
+                '0%, 100%': { transform: 'translateY(0px)' },
+                '50%':      { transform: 'translateY(-6px)' },
+              },
+            },
+            animation: {
+              'pulse-ring': 'pulse-ring 1.6s cubic-bezier(0.215, 0.61, 0.355, 1) infinite',
+              'scan': 'scan 2.4s linear infinite',
+              'shimmer': 'shimmer 2.6s linear infinite',
+              'float': 'float 4s ease-in-out infinite',
+            },
+          }
+        }
+      };
+    </script>
     <style>
-      body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', system-ui, sans-serif;
+        color: #0f1628;
+        background:
+          radial-gradient(60% 50% at 15% 10%, rgba(50,102,255,0.16) 0%, transparent 60%),
+          radial-gradient(50% 40% at 90% 20%, rgba(34,211,238,0.16) 0%, transparent 60%),
+          radial-gradient(50% 50% at 80% 90%, rgba(99,102,241,0.10) 0%, transparent 60%),
+          linear-gradient(180deg, #f6f8fc 0%, #eef2fa 100%);
+        background-attachment: fixed;
+        min-height: 100vh;
+      }
+
+      /* Glass card */
+      .glass {
+        background: linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.70) 100%);
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid rgba(255,255,255,0.65);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.65),
+          0 1px 2px rgba(15,22,40,0.04),
+          0 18px 40px -16px rgba(31,74,224,0.18);
+        border-radius: 20px;
+      }
+      .glass-strong {
+        background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.78) 100%);
+      }
+      .glass-soft {
+        background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.4) 100%);
+      }
+
+      /* Subtle grid background for hero areas */
+      .grid-bg {
+        background-image:
+          linear-gradient(to right, rgba(31,74,224,0.06) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(31,74,224,0.06) 1px, transparent 1px);
+        background-size: 32px 32px;
+        mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+      }
+
+      /* Animated gradient border */
+      .gradient-ring {
+        position: relative;
+      }
+      .gradient-ring::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(135deg, rgba(50,102,255,0.6), rgba(34,211,238,0.6), rgba(99,102,241,0.6));
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+                mask-composite: exclude;
+        pointer-events: none;
+      }
+
+      /* Scan line for hero */
+      .scanline::after {
+        content: '';
+        position: absolute;
+        left: 0; right: 0; top: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(50,102,255,0.55), transparent);
+        animation: scan 2.4s linear infinite;
+      }
+      @keyframes scan {
+        0%   { transform: translateY(0); opacity: 0; }
+        10%  { opacity: 1; }
+        90%  { opacity: 1; }
+        100% { transform: translateY(220px); opacity: 0; }
+      }
+
+      /* Mono numbers */
+      .num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+      /* Custom focus */
+      .focus-ring:focus { outline: none; box-shadow: 0 0 0 4px rgba(50,102,255,0.15), 0 0 0 1px #3266ff; }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-thumb { background: rgba(31,74,224,0.18); border-radius: 999px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(31,74,224,0.32); }
+
+      /* Selection */
+      ::selection { background: rgba(50,102,255,0.18); }
     </style>
   <script type="importmap">
 {
@@ -16,11 +202,12 @@
     "react": "https://esm.sh/react@^19.2.3",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.38.0",
+    "sonner": "https://esm.sh/sonner@^2.0.7"
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>
