@@ -20,7 +20,7 @@ import { validateFeatures } from '../utils/biometrics';
 import type { KeystrokeFeatures, VerificationResponse } from '../types';
 
 const PHRASE = 'Съешь же ещё этих мягких французских булок, да выпей чаю.';
-const REQUIRED_SAMPLES = 5;
+const REQUIRED_SAMPLES = 10;
 const USERNAME_RE = /^[a-zA-Z0-9_.-]+$/;
 
 type Mode = 'verify' | 'register';
