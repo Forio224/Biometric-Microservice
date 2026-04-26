@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, ShieldAlert, Users, ServerCog, Cpu, Gauge, Activity,
-  TimerReset, ArrowUpRight, ArrowDownRight, Lock,
+  TimerReset, ArrowUpRight, ArrowDownRight, Lock, RefreshCcw, Trash2,
 } from 'lucide-react';
 
 import { GlassCard } from '../ui/GlassCard';
@@ -14,13 +14,53 @@ import { SectionHeader } from '../components/SectionHeader';
 import { StatusPill } from '../ui/StatusPill';
 import { ProgressBar } from '../ui/ProgressBar';
 import {
-  MOCK_USERS, MOCK_ATTEMPTS, MOCK_METRICS, ACCURACY_TIMELINE, SCORE_DISTRIBUTION,
+  MOCK_USERS, MOCK_METRICS, ACCURACY_TIMELINE, SCORE_DISTRIBUTION,
 } from '../mock/data';
+import { useAppState } from '../AppContext';
 
 export const DashboardPage: React.FC = () => {
-  const last24h = MOCK_ATTEMPTS;
-  const successCount = last24h.filter((a) => a.status === 'success').length;
-  const successRate = Math.round((successCount / last24h.length) * 100);
+  const { online, ready, baseUrl, refresh, users, history, lastSession, clearHistory } = useAppState();
+
+  // Реальная история, если есть; иначе — fallback на mock-демо для скриншотов
+  const useRealHistory = history.length > 0;
+  const attempts = useMemo(
+    () => useRealHistory
+      ? history.slice(0, 12).map((h) => ({
+          id: h.id,
+          username: h.username,
+          timestamp: h.timestamp,
+          status: h.status === 'denied' ? 'denied' as const : h.status === 'success' ? 'success' as const : 'denied' as const,
+          score: clampUnit(scoreToUnit(h.score, h.threshold)),
+          device: h.method ?? '—',
+          ip: h.source === 'api' ? 'api' : 'mock',
+          reason: h.details,
+        }))
+      : MOCK_USERS && [
+          { id: 'a-2041', username: 'a.ivanov',  timestamp: '2026-04-25T19:22:14Z', status: 'success' as const, score: 0.93, device: 'Lenovo T14', ip: '10.0.4.11', reason: 'demo' },
+          { id: 'a-2040', username: 'a.ivanov',  timestamp: '2026-04-25T19:08:02Z', status: 'success' as const, score: 0.88, device: 'Lenovo T14', ip: '10.0.4.11' },
+          { id: 'a-2039', username: 'm.petrova', timestamp: '2026-04-25T18:05:51Z', status: 'success' as const, score: 0.81, device: 'MacBook Air', ip: '10.0.4.34' },
+          { id: 'a-2038', username: 'unknown',   timestamp: '2026-04-25T17:41:09Z', status: 'denied'  as const, score: 0.42, device: 'Tor browser', ip: '185.220.x.x', reason: 'demo' },
+          { id: 'a-2037', username: 'k.smirnov', timestamp: '2026-04-25T16:33:27Z', status: 'success' as const, score: 0.79, device: 'Dell Latitude', ip: '10.0.4.7' },
+        ],
+    [useRealHistory, history]
+  );
+
+  const successCount = attempts.filter((a) => a.status === 'success').length;
+  const successRate = attempts.length > 0 ? Math.round((successCount / attempts.length) * 100) : 0;
+
+  const showMockUsers = users.length === 0;
+  const userList = showMockUsers
+    ? MOCK_USERS
+    : users.map((u, i) => ({
+        id: u.id,
+        username: u.username,
+        fullName: u.username.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        role: i === 0 ? 'Администратор' : 'Пользователь',
+        trust: 0.85 - (i % 5) * 0.04,
+        registeredAt: u.created_at,
+        lastLogin: u.created_at,
+        samples: 5,
+      }));
 
   return (
     <div className="space-y-8">
@@ -29,8 +69,17 @@ export const DashboardPage: React.FC = () => {
         title="Метрики и аналитика биометрической аутентификации"
         description="Состояние системы в реальном времени, ключевые метрики качества (FAR / FRR / Accuracy) и журнал последних попыток входа."
         right={
-          <div className="flex items-center gap-2">
-            <StatusPill tone="success" pulse>система · онлайн</StatusPill>
+          <div className="flex items-center gap-2 flex-wrap">
+            {ready && (online
+              ? <StatusPill tone="success" pulse>API · онлайн</StatusPill>
+              : <StatusPill tone="warning" pulse>API · оффлайн</StatusPill>
+            )}
+            <button
+              onClick={refresh}
+              className="num text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-white/70 bg-white/70 hover:bg-white transition-colors"
+            >
+              <RefreshCcw size={11} /> health-check
+            </button>
             <StatusPill tone="info" icon={<TimerReset size={12} />}>обновлено · только что</StatusPill>
           </div>
         }
@@ -45,6 +94,7 @@ export const DashboardPage: React.FC = () => {
           tone="info"
           delta={+0.2}
           spark={ACCURACY_TIMELINE.map((p) => p.accuracy)}
+          hint="reference dataset"
         />
         <KpiTile
           icon={<ShieldAlert size={16} className="text-rose-600" />}
@@ -88,21 +138,23 @@ export const DashboardPage: React.FC = () => {
                 <div className="text-xs text-ink-500">микросервис BioAuth · v1.0</div>
               </div>
             </div>
-            <StatusPill tone="success" pulse>online</StatusPill>
+            <StatusPill tone={online ? 'success' : 'danger'} pulse>
+              {online ? 'online' : 'offline'}
+            </StatusPill>
           </div>
 
           <div className="space-y-3.5">
-            <Meter label="Уровень доверия" value={92} tone="brand" />
-            <Meter label="Загрузка ML-инференса" value={37} tone="warning" />
-            <Meter label="Свободная память" value={68} tone="success" />
-            <Meter label="Обработано запросов / сек" value={84} tone="brand" hint="нормировано к пиковой нагрузке" />
+            <Meter label="Уровень доверия" value={online ? 92 : 0} tone="brand" />
+            <Meter label="Загрузка ML-инференса" value={online ? 37 : 0} tone="warning" />
+            <Meter label="Свободная память" value={online ? 68 : 0} tone="success" />
+            <Meter label="Доступность API" value={online ? 100 : 0} tone={online ? 'brand' : 'danger'} hint={online ? `endpoint ${baseUrl || '(same-origin)'}/health` : 'health-check провалился'} />
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-5 text-[11px]">
             <Box icon={<Cpu size={12} />} label="Модель" value="GMM · 4 mix" />
-            <Box icon={<Lock size={12} />} label="Threshold" value={`${MOCK_METRICS.threshold.toFixed(2)}`} />
-            <Box icon={<Users size={12} />} label="Пользователей" value={`${MOCK_USERS.length}`} />
-            <Box icon={<ShieldCheck size={12} />} label="Заблокировано" value={`${MOCK_METRICS.blockedThreats}`} />
+            <Box icon={<Lock size={12} />} label="Endpoint" value={baseUrl || 'same-origin'} />
+            <Box icon={<Users size={12} />} label="Пользователей" value={`${users.length || MOCK_USERS.length}`} />
+            <Box icon={<ShieldCheck size={12} />} label="Источник" value={online ? 'FastAPI' : 'mock-fallback'} />
           </div>
         </GlassCard>
 
@@ -115,7 +167,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div>
                 <div className="font-display font-semibold text-ink-900 text-[15px]">Динамика качества</div>
-                <div className="text-xs text-ink-500">Accuracy / FAR / FRR за 6 недель</div>
+                <div className="text-xs text-ink-500">Accuracy / FAR / FRR за 6 недель · reference dataset</div>
               </div>
             </div>
             <StatusPill tone="info">recharts</StatusPill>
@@ -147,7 +199,6 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Score distribution */}
         <GlassCard ring className="p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -187,7 +238,6 @@ export const DashboardPage: React.FC = () => {
           </div>
         </GlassCard>
 
-        {/* Users */}
         <GlassCard ring className="p-5 lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
@@ -196,12 +246,17 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div>
                 <div className="font-display font-semibold text-ink-900 text-[15px]">Активные пользователи</div>
-                <div className="text-xs text-ink-500">{MOCK_USERS.length} зарегистрировано</div>
+                <div className="text-xs text-ink-500">
+                  {showMockUsers ? `${MOCK_USERS.length} demo (нет соединения)` : `${users.length} зарегистрировано в БД`}
+                </div>
               </div>
             </div>
+            <StatusPill tone={showMockUsers ? 'warning' : 'success'}>
+              {showMockUsers ? 'mock' : 'API'}
+            </StatusPill>
           </div>
-          <ul className="space-y-2">
-            {MOCK_USERS.map((u, i) => (
+          <ul className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+            {userList.map((u, i) => (
               <motion.li
                 key={u.id}
                 initial={{ opacity: 0, y: 4 }}
@@ -210,19 +265,29 @@ export const DashboardPage: React.FC = () => {
                 className="rounded-xl border border-white/70 bg-white/60 px-3 py-2.5 flex items-center gap-3"
               >
                 <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500/10 to-accent-500/10 border border-white/70 grid place-items-center text-[13px] font-semibold text-brand-700">
-                  {u.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                  {u.username.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-ink-900 truncate">{u.fullName}</div>
-                  <div className="text-[11px] text-ink-500 num truncate">@{u.username} · {u.role}</div>
+                  <div className="text-sm font-semibold text-ink-900 truncate">{('fullName' in u ? u.fullName : u.username) as string}</div>
+                  <div className="text-[11px] text-ink-500 num truncate">@{u.username} · {('role' in u ? u.role : '—') as string}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="num text-[13px] font-semibold text-ink-900">{Math.round(u.trust * 100)}%</div>
+                  <div className="num text-[13px] font-semibold text-ink-900">
+                    {Math.round((('trust' in u ? u.trust : 0.8) as number) * 100)}%
+                  </div>
                   <div className="text-[10px] uppercase tracking-[0.16em] text-ink-500">trust</div>
                 </div>
               </motion.li>
             ))}
           </ul>
+          {lastSession && (
+            <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50/60 px-3 py-2 text-[11px]">
+              <div className="text-ink-500 uppercase tracking-[0.18em] mb-0.5">Последняя сессия</div>
+              <div className="num text-ink-800 font-semibold">
+                @{lastSession.username} · score {lastSession.score.toFixed(2)} · {lastSession.success ? 'success' : 'denied'}
+              </div>
+            </div>
+          )}
         </GlassCard>
       </div>
 
@@ -235,12 +300,24 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div>
               <div className="font-display font-semibold text-ink-900 text-[15px]">История попыток</div>
-              <div className="text-xs text-ink-500">{last24h.length} событий · {successRate}% успешных</div>
+              <div className="text-xs text-ink-500">
+                {useRealHistory
+                  ? `${attempts.length} событий · ${successRate}% успешных · localStorage`
+                  : `demo · ${attempts.length} событий · ${successRate}% успешных`}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <StatusPill tone="success">{successCount} успех</StatusPill>
-            <StatusPill tone="danger">{last24h.length - successCount} отказ</StatusPill>
+            <StatusPill tone="danger">{attempts.length - successCount} отказ</StatusPill>
+            {useRealHistory && (
+              <button
+                onClick={clearHistory}
+                className="text-[11px] inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
+              >
+                <Trash2 size={11} /> очистить
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto -mx-3">
@@ -250,14 +327,14 @@ export const DashboardPage: React.FC = () => {
                 <th className="text-left font-semibold py-2 px-3">id</th>
                 <th className="text-left font-semibold py-2 px-3">Пользователь</th>
                 <th className="text-left font-semibold py-2 px-3">Время</th>
-                <th className="text-left font-semibold py-2 px-3">Устройство</th>
-                <th className="text-left font-semibold py-2 px-3">IP</th>
+                <th className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Метод' : 'Устройство'}</th>
+                <th className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Источник' : 'IP'}</th>
                 <th className="text-left font-semibold py-2 px-3">Score</th>
                 <th className="text-left font-semibold py-2 px-3">Статус</th>
               </tr>
             </thead>
             <tbody>
-              {last24h.map((a, i) => (
+              {attempts.map((a, i) => (
                 <motion.tr
                   key={a.id}
                   initial={{ opacity: 0, y: 4 }}
@@ -305,8 +382,8 @@ const Meter: React.FC<{ label: string; value: number; tone: 'brand' | 'success' 
 );
 
 const Box: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-  <div className="rounded-lg border border-white/70 bg-white/60 px-2.5 py-2 flex items-center gap-2">
-    <span className="text-ink-500">{icon}</span>
+  <div className="rounded-lg border border-white/70 bg-white/60 px-2.5 py-2 flex items-center gap-2 min-w-0">
+    <span className="text-ink-500 shrink-0">{icon}</span>
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-[0.18em] text-ink-500 truncate">{label}</div>
       <div className="num text-[13px] text-ink-800 font-semibold truncate">{value}</div>
@@ -332,7 +409,6 @@ const kpiBg: Record<KpiProps['tone'], string> = {
 
 const KpiTile: React.FC<KpiProps> = ({ icon, label, value, delta, tone, hint, spark }) => {
   const positive = delta >= 0;
-  // For metrics like FAR/FRR, lower is better — caller sends negative delta accordingly
   const goodDirection = (label === 'Accuracy') ? positive : !positive;
   return (
     <motion.div
@@ -367,4 +443,13 @@ const KpiTile: React.FC<KpiProps> = ({ icon, label, value, delta, tone, hint, sp
       )}
     </motion.div>
   );
+};
+
+const clampUnit = (v: number) => Math.max(0, Math.min(1, v));
+
+const scoreToUnit = (score: number, threshold: number): number => {
+  if (score >= 0 && score <= 1 && threshold >= 0 && threshold <= 1) return score;
+  // log-likelihood случай: нормализуем относительно порога
+  const span = Math.max(1, Math.abs(threshold) * 1.5);
+  return 0.72 + (score - threshold) / span * 0.4;
 };

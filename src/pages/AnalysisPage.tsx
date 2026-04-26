@@ -13,6 +13,10 @@ import { KeyHeatmap } from '../components/KeyHeatmap';
 import {
   REFERENCE_DWELL, REFERENCE_FLIGHT, buildHeatmap, KEYBOARD_ROWS,
 } from '../mock/data';
+import { useAppState } from '../AppContext';
+import type { KeystrokeFeatures, UserTemplate } from '../types';
+
+const clean = (code: string) => code.replace('Key', '').replace(/Digit/, '').replace('Numpad', 'N');
 
 // Генерация «текущего» ввода — отклонения вокруг эталона
 const noisySeries = <T extends { reference: number }>(
@@ -29,26 +33,35 @@ const noisySeries = <T extends { reference: number }>(
 };
 
 export const AnalysisPage: React.FC = () => {
+  const { lastFeatures, lastTemplate, lastSession } = useAppState();
   const [seed, setSeed] = useState(17);
 
+  const realDwell = useMemo(() => buildRealDwell(lastFeatures, lastTemplate), [lastFeatures, lastTemplate]);
+  const realFlight = useMemo(() => buildRealFlight(lastFeatures, lastTemplate), [lastFeatures, lastTemplate]);
+  const usingRealData = realDwell.length > 0 && realFlight.length > 0;
+
   const dwellData = useMemo(
-    () => noisySeries(REFERENCE_DWELL.slice(0, 12), 18, seed).map((d, i) => ({
-      idx: i + 1,
-      key: d.key,
-      reference: d.reference,
-      current: d.current,
-    })),
-    [seed]
+    () => usingRealData
+      ? realDwell
+      : noisySeries(REFERENCE_DWELL.slice(0, 12), 18, seed).map((d, i) => ({
+          idx: i + 1,
+          key: d.key,
+          reference: d.reference,
+          current: d.current,
+        })),
+    [usingRealData, realDwell, seed]
   );
 
   const flightData = useMemo(
-    () => noisySeries(REFERENCE_FLIGHT.slice(0, 12), 24, seed + 5).map((d, i) => ({
-      idx: i + 1,
-      pair: d.pair,
-      reference: d.reference,
-      current: d.current,
-    })),
-    [seed]
+    () => usingRealData
+      ? realFlight
+      : noisySeries(REFERENCE_FLIGHT.slice(0, 12), 24, seed + 5).map((d, i) => ({
+          idx: i + 1,
+          pair: d.pair,
+          reference: d.reference,
+          current: d.current,
+        })),
+    [usingRealData, realFlight, seed]
   );
 
   const heat = useMemo(() => buildHeatmap(0.21 + (seed % 50) / 100), [seed]);
@@ -67,16 +80,24 @@ export const AnalysisPage: React.FC = () => {
       <SectionHeader
         eyebrow="02 · анализ почерка"
         title="Извлечение признаков клавиатурного почерка"
-        description="Сравнение dwell- и flight-времён эталонного шаблона с текущим вводом. Цветовая карта показывает «характерность» клавиш для пользователя."
+        description={
+          usingRealData
+            ? `Реальные данные последней верификации @${lastSession?.username ?? '—'}: dwell- и flight-времена сопоставлены с эталоном пользователя из БД.`
+            : 'Сравнение dwell- и flight-времён эталонного шаблона с текущим вводом. Войдите на вкладке «Аутентификация», чтобы увидеть собственный почерк.'
+        }
         right={
           <div className="flex items-center gap-2">
-            <StatusPill tone="info" icon={<ScanLine size={12} />}>recharts</StatusPill>
-            <button
-              onClick={() => setSeed((s) => s + 7)}
-              className="text-[11px] num bg-white/80 border border-white/70 hover:bg-white px-2.5 py-1 rounded-md transition-colors"
-            >
-              ⟲ перегенерировать
-            </button>
+            <StatusPill tone={usingRealData ? 'success' : 'warning'} icon={<ScanLine size={12} />}>
+              {usingRealData ? 'real · API' : 'demo · mock'}
+            </StatusPill>
+            {!usingRealData && (
+              <button
+                onClick={() => setSeed((s) => s + 7)}
+                className="text-[11px] num bg-white/80 border border-white/70 hover:bg-white px-2.5 py-1 rounded-md transition-colors"
+              >
+                ⟲ перегенерировать
+              </button>
+            )}
           </div>
         }
       />
@@ -266,6 +287,17 @@ export const AnalysisPage: React.FC = () => {
         </GlassCard>
       </div>
 
+      {usingRealData && lastFeatures && (
+        <GlassCard ring className="p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <FactBox label="Длительность" value={`${Math.round(lastFeatures.totalDuration)} мс`} />
+            <FactBox label="Символов" value={`${lastFeatures.typedChars ?? 0}`} />
+            <FactBox label="Сравнено клавиш" value={`${realDwell.length}`} />
+            <FactBox label="Сравнено пар" value={`${realFlight.length}`} />
+          </div>
+        </GlassCard>
+      )}
+
       <GlassCard ring className="p-6">
         <ChartHeader
           icon={<Layers size={16} className="text-brand-600" />}
@@ -303,3 +335,52 @@ const ChartHeader: React.FC<{ icon: React.ReactNode; title: string; subtitle?: s
     </div>
   </div>
 );
+
+const FactBox: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="rounded-xl border border-white/70 bg-white/60 px-3 py-2.5">
+    <div className="text-[11px] uppercase tracking-[0.18em] text-ink-500">{label}</div>
+    <div className="num text-[18px] font-semibold text-ink-900">{value}</div>
+  </div>
+);
+
+// ───── Преобразование реальных данных верификации в данные для графиков ─────
+
+type DwellRow = { idx: number; key: string; reference: number; current: number };
+type FlightRow = { idx: number; pair: string; reference: number; current: number };
+
+function buildRealDwell(features: KeystrokeFeatures | null, template: UserTemplate | null): DwellRow[] {
+  const meanDwell = template?.means?.dwell ?? null;
+  if (!features || !meanDwell) return [];
+  const rows: DwellRow[] = [];
+  Object.entries(features.dwellTimes).forEach(([code, current]) => {
+    const reference = meanDwell[code];
+    if (typeof reference === 'number' && Number.isFinite(reference)) {
+      rows.push({
+        idx: rows.length + 1,
+        key: clean(code),
+        reference: Math.round(reference),
+        current: Math.round(current),
+      });
+    }
+  });
+  return rows.slice(0, 14);
+}
+
+function buildRealFlight(features: KeystrokeFeatures | null, template: UserTemplate | null): FlightRow[] {
+  const meanFlight = template?.means?.flight ?? null;
+  if (!features || !meanFlight) return [];
+  const rows: FlightRow[] = [];
+  Object.entries(features.flightTimes).forEach(([digraph, current]) => {
+    const reference = meanFlight[digraph];
+    if (typeof reference === 'number' && Number.isFinite(reference)) {
+      const [a, b] = digraph.split('->');
+      rows.push({
+        idx: rows.length + 1,
+        pair: `${clean(a || '')}→${clean(b || '')}`,
+        reference: Math.round(reference),
+        current: Math.round(current),
+      });
+    }
+  });
+  return rows.slice(0, 14);
+}
