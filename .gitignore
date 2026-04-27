@@ -11,6 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+bioauth.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
 
 # Editor directories and files
 .vscode/*
