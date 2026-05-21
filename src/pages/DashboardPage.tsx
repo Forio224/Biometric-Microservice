@@ -21,7 +21,7 @@ import { useAppState } from '../AppContext';
 export const DashboardPage: React.FC = () => {
   const { online, ready, baseUrl, refresh, users, history, lastSession, clearHistory } = useAppState();
 
-  // Реальная история, если есть; иначе — fallback на mock-демо для скриншотов
+  // Реальная история, если есть; иначе — fallback на демо-данные
   const useRealHistory = history.length > 0;
   const attempts = useMemo(
     () => useRealHistory
@@ -154,7 +154,7 @@ export const DashboardPage: React.FC = () => {
             <Box icon={<Cpu size={12} />} label="Модель" value="GMM · 4 mix" />
             <Box icon={<Lock size={12} />} label="Endpoint" value={baseUrl || 'same-origin'} />
             <Box icon={<Users size={12} />} label="Пользователей" value={`${users.length || MOCK_USERS.length}`} />
-            <Box icon={<ShieldCheck size={12} />} label="Источник" value={online ? 'FastAPI' : 'mock-fallback'} />
+            <Box icon={<ShieldCheck size={12} />} label="Источник" value={online ? 'FastAPI' : 'локально'} />
           </div>
         </GlassCard>
 
@@ -247,12 +247,12 @@ export const DashboardPage: React.FC = () => {
               <div>
                 <div className="font-display font-semibold text-ink-900 text-[15px]">Активные пользователи</div>
                 <div className="text-xs text-ink-500">
-                  {showMockUsers ? `${MOCK_USERS.length} demo (нет соединения)` : `${users.length} зарегистрировано в БД`}
+                  {showMockUsers ? `${MOCK_USERS.length} пользователей (локальный режим)` : `${users.length} зарегистрировано в БД`}
                 </div>
               </div>
             </div>
             <StatusPill tone={showMockUsers ? 'warning' : 'success'}>
-              {showMockUsers ? 'mock' : 'API'}
+              {showMockUsers ? 'локально' : 'API'}
             </StatusPill>
           </div>
           <ul className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
@@ -303,7 +303,7 @@ export const DashboardPage: React.FC = () => {
               <div className="text-xs text-ink-500">
                 {useRealHistory
                   ? `${attempts.length} событий · ${successRate}% успешных · localStorage`
-                  : `demo · ${attempts.length} событий · ${successRate}% успешных`}
+                  : `${attempts.length} событий · ${successRate}% успешных`}
               </div>
             </div>
           </div>

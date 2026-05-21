@@ -88,7 +88,7 @@ export const AnalysisPage: React.FC = () => {
         right={
           <div className="flex items-center gap-2">
             <StatusPill tone={usingRealData ? 'success' : 'warning'} icon={<ScanLine size={12} />}>
-              {usingRealData ? 'real · API' : 'demo · mock'}
+              {usingRealData ? 'real · API' : 'локальный режим'}
             </StatusPill>
             {!usingRealData && (
               <button

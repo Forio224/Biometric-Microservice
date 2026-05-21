@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Fingerprint, ShieldCheck, ScanLine, LayoutDashboard } from 'lucide-react';
+import { Fingerprint, ShieldCheck, ScanLine, LayoutDashboard, Sun, Moon } from 'lucide-react';
 import { StatusPill } from '../ui/StatusPill';
 
 export type RouteId = 'auth' | 'analysis' | 'dashboard';
@@ -17,8 +17,26 @@ const ITEMS: { id: RouteId; label: string; icon: React.ReactNode }[] = [
 ];
 
 export const TopBar: React.FC<Props> = ({ route, onChange }) => {
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (dark) {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [dark]);
+
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-md bg-white/55 border-b border-white/60">
+    <header className="sticky top-0 z-30 backdrop-blur-md border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}>
       <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-3.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-accent-500 grid place-items-center shadow-glow">
@@ -60,9 +78,17 @@ export const TopBar: React.FC<Props> = ({ route, onChange }) => {
 
         <div className="flex items-center gap-2">
           <StatusPill tone="success" pulse>система · онлайн</StatusPill>
-          <span className="hidden sm:inline-flex text-[11px] num text-ink-500 px-2 py-1 rounded-md bg-white/60 border border-white/60">
-            v1.0 · demo
+          <span className="hidden sm:inline-flex text-[11px] num text-ink-500 px-2 py-1 rounded-md" style={{ backgroundColor: 'var(--card-bg-subtle)', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-subtle)' }}>
+            v1.0
           </span>
+          <button
+            onClick={() => setDark((d) => !d)}
+            className="w-8 h-8 rounded-lg grid place-items-center transition-colors hover:bg-brand-50"
+            style={{ backgroundColor: 'var(--card-bg-subtle)', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-subtle)' }}
+            title={dark ? 'Светлая тема' : 'Тёмная тема'}
+          >
+            {dark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-ink-500" />}
+          </button>
         </div>
       </div>
 

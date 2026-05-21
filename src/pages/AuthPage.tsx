@@ -106,6 +106,11 @@ export const AuthPage: React.FC = () => {
       push({ tone: 'warning', title: 'Введите контрольную фразу', description: 'Поле фразы пустое' });
       return;
     }
+    const minLen = Math.floor(PHRASE.length * 0.8);
+    if (phrase.length < minLen) {
+      push({ tone: 'warning', title: 'Фраза слишком короткая', description: `Минимум ${minLen} символов, введено ${phrase.length}` });
+      return;
+    }
     const features = computeFeatures();
     const validationError = validateFeatures(features, PHRASE.length, 'auth');
     if (validationError) {
@@ -138,6 +143,11 @@ export const AuthPage: React.FC = () => {
       push({ tone: 'warning', title: 'Введите фразу', description: 'Поле пустое' });
       return;
     }
+    const minLen = Math.floor(PHRASE.length * 0.8);
+    if (phrase.length < minLen) {
+      push({ tone: 'warning', title: 'Фраза слишком короткая', description: `Минимум ${minLen} символов, введено ${phrase.length}` });
+      return;
+    }
     const features = computeFeatures();
     const validationError = validateFeatures(features, PHRASE.length, 'registration');
     if (validationError) {
@@ -156,8 +166,8 @@ export const AuthPage: React.FC = () => {
       push({ tone: 'warning', title: 'Проверьте логин', description: usernameError ?? 'Введите логин' });
       return;
     }
-    if (collectedSamples.length < 3) {
-      push({ tone: 'warning', title: 'Недостаточно образцов', description: `Нужно минимум 3, у вас ${collectedSamples.length}` });
+    if (collectedSamples.length < REQUIRED_SAMPLES) {
+      push({ tone: 'warning', title: 'Недостаточно образцов', description: `Нужно минимум ${REQUIRED_SAMPLES}, у вас ${collectedSamples.length}` });
       return;
     }
     setBusy(true);
@@ -197,7 +207,7 @@ export const AuthPage: React.FC = () => {
         right={
           <div className="flex flex-col items-end gap-1.5">
             <StatusPill tone={online ? 'success' : 'warning'} pulse>
-              {online ? 'API · online' : 'API · offline · mock'}
+              {online ? 'API · online' : 'API · локальный режим'}
             </StatusPill>
             <div className="text-[11px] text-ink-500 num">порог принятия 72%</div>
           </div>
@@ -245,7 +255,7 @@ export const AuthPage: React.FC = () => {
               <div className="text-xs text-ink-500">
                 {mode === 'verify'
                   ? 'POST /verify · GMM сопоставление с эталоном'
-                  : `POST /register · необходимо минимум 3, рекомендовано ${REQUIRED_SAMPLES} образцов`}
+                  : `POST /register · необходимо ${REQUIRED_SAMPLES} образцов`}
               </div>
             </div>
           </div>
@@ -266,9 +276,9 @@ export const AuthPage: React.FC = () => {
             <Input
               label="Алгоритм"
               icon={<KeyRound size={16} />}
-              value={online ? 'GMM · сервер · 12 признаков' : 'mock-fallback · детерм. score'}
+              value={online ? 'GMM · сервер · 12 признаков' : 'Локальный режим'}
               readOnly
-              hint={online ? `endpoint ${mode === 'verify' ? '/verify' : '/register'}` : 'нет соединения с backend'}
+              hint={online ? `endpoint ${mode === 'verify' ? '/verify' : '/register'}` : 'Локальный режим — данные не сохраняются в БД'}
             />
           </div>
 
@@ -285,6 +295,7 @@ export const AuthPage: React.FC = () => {
                 rows={3}
                 value={phrase}
                 disabled={busy || !!registerDone}
+                onPaste={(e) => e.preventDefault()}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -353,7 +364,7 @@ export const AuthPage: React.FC = () => {
                 <AnimatedButton
                   onClick={submitRegister}
                   loading={busy}
-                  disabled={collectedSamples.length < 3 || !!registerDone}
+                  disabled={collectedSamples.length < REQUIRED_SAMPLES || !!registerDone}
                   icon={<UserPlus size={16} />}
                 >
                   Зарегистрировать
@@ -510,7 +521,7 @@ const VerifyResultBlock: React.FC<{
               <div className="text-xs text-ink-600">{result.details}</div>
             </div>
             <StatusPill tone={result.source === 'api' ? 'info' : 'warning'}>
-              {result.source === 'api' ? result.method ?? 'GMM' : 'mock'}
+              {result.source === 'api' ? result.method ?? 'GMM' : 'локально'}
             </StatusPill>
           </div>
 
@@ -536,7 +547,7 @@ const VerifyResultBlock: React.FC<{
             <span className="text-[11px] text-ink-500">
               {result.source === 'api'
                 ? 'Ответ получен от FastAPI · сохранён в локальной истории'
-                : 'mock-режим: backend недоступен, score сгенерирован детерминированно'}
+                : 'Локальный режим: данные не сохраняются в БД'}
             </span>
           </div>
         </motion.div>
@@ -579,7 +590,7 @@ const RegisterResultBlock: React.FC<{
             </div>
           </div>
           <StatusPill tone={done.source === 'api' ? 'success' : 'warning'}>
-            {done.source === 'api' ? 'API' : 'mock'}
+            {done.source === 'api' ? 'API' : 'локально'}
           </StatusPill>
         </div>
         <p className="text-xs text-ink-500 mt-3">
@@ -598,8 +609,8 @@ const RegisterResultBlock: React.FC<{
       <div className="font-display text-ink-900 font-semibold">
         {samplesCount === 0
           ? 'Введите контрольную фразу первый раз'
-          : samplesCount < 3
-            ? `Ещё ${3 - samplesCount} образцов до минимума`
+          : samplesCount < REQUIRED_SAMPLES
+            ? `Ещё ${REQUIRED_SAMPLES - samplesCount} образцов до регистрации`
             : `Готово к отправке: ${samplesCount} образцов`}
       </div>
       <p className="text-xs text-ink-500 mt-1">
