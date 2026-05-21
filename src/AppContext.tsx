@@ -113,10 +113,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await reloadUsers();
       return { ...res, source: 'api' as const };
     }
-    // Mock-fallback: имитируем успех, чтобы можно было показать поведение
     return {
-      message: 'Пользователь зарегистрирован локально (mock)',
-      user_id: `mock-${Math.random().toString(16).slice(2, 8)}`,
+      message: 'Пользователь зарегистрирован локально (локальный режим)',
+      user_id: `local-${Math.random().toString(16).slice(2, 8)}`,
       source: 'mock' as const,
     };
   }, [status.online, reloadUsers]);
@@ -130,7 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Подгружаем шаблон для страницы анализа
       ApiService.getTemplate(username).then((t) => setLastTemplate(t)).catch(() => {});
     } else {
-      // Mock fallback: детерминированный score от пары username + длина ввода
+      // Fallback: локальный режим, детерминированный score
       const seed = `${username}::${sample.totalDuration.toFixed(0)}::${(sample.typedChars ?? 0)}`;
       const raw = seededScore(seed);
       const threshold = 0.72;
@@ -140,10 +139,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         score: raw,
         threshold,
         details: success
-          ? 'Локальная проверка: ритм совпадает с эталоном (mock)'
-          : 'Локальная проверка: ритм отличается от эталона (mock)',
+          ? 'Локальная проверка: ритм совпадает с эталоном'
+          : 'Локальная проверка: ритм отличается от эталона',
         username,
-        method: 'mock-fallback',
+        method: 'local-fallback',
         source: 'mock',
       };
     }

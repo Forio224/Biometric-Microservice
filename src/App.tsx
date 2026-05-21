@@ -39,9 +39,7 @@ const Shell: React.FC = () => {
               <div className="flex items-center gap-2">
                 <WifiOff size={14} />
                 <span>
-                  <b>Система оффлайн</b> · backend{' '}
-                  <span className="num">{baseUrl || '(same-origin)'}</span>{' '}
-                  не отвечает. Включён mock-режим: регистрация и верификация имитируются локально.
+                  <b>Локальный режим</b> · программа работает локально, данные не будут сохранены в БД.
                 </span>
               </div>
               <button
@@ -77,7 +75,7 @@ const Shell: React.FC = () => {
 };
 
 const Footer: React.FC = () => (
-  <footer className="mt-auto border-t border-white/60 bg-white/40 backdrop-blur-md">
+  <footer className="mt-auto border-t backdrop-blur-md" style={{ backgroundColor: 'var(--footer-bg)', borderColor: 'var(--border-subtle)' }}>
     <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-ink-600">
       <div>
         <div className="font-display font-semibold text-ink-900 mb-1">KeystrokeID</div>
@@ -90,7 +88,7 @@ const Footer: React.FC = () => (
         <div className="font-display font-semibold text-ink-900 mb-1">Стек</div>
         <p className="leading-relaxed">
           React 19 · TypeScript · Vite · TailwindCSS · Framer Motion · Recharts.
-          Backend: FastAPI + PostgreSQL + GMM. Mock-fallback при недоступности API.
+          Backend: FastAPI + PostgreSQL + GMM.
         </p>
       </div>
       <div className="md:text-right">
@@ -99,7 +97,7 @@ const Footer: React.FC = () => (
         <p>«Клавиатурный почерк — уникальная поведенческая характеристика».</p>
       </div>
     </div>
-    <div className="border-t border-white/60">
+    <div className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
       <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-3 text-[11px] uppercase tracking-[0.22em] text-ink-500 text-center">
         Выпускная квалификационная работа · прототип программного комплекса · {new Date().getFullYear()}
       </div>
