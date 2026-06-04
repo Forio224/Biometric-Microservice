@@ -21,9 +21,9 @@ export const SectionHeader: React.FC<Props> = ({ eyebrow, title, description, ri
             {eyebrow}
           </div>
         )}
-        <h2 className="font-display text-[26px] sm:text-[30px] font-semibold text-ink-900 leading-tight">
+        <h1 className="font-display text-[26px] sm:text-[30px] font-semibold text-ink-900 leading-tight">
           {title}
-        </h2>
+        </h1>
         {description && (
           <p className="text-sm text-ink-600 mt-1.5 max-w-[640px] leading-relaxed">
             {description}

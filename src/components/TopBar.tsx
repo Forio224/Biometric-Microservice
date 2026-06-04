@@ -45,17 +45,18 @@ export const TopBar: React.FC<Props> = ({ route, onChange }) => {
           </div>
           <div className="leading-tight">
             <div className="font-display font-semibold text-[15px] text-ink-900">KeystrokeID</div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-500">behavioral biometrics · ВКР</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-ink-500">behavioral biometrics</div>
           </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-white/60 border border-white/60 shadow-soft">
+        <nav aria-label="Основная навигация" className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-white/60 border border-white/60 shadow-soft">
           {ITEMS.map((it) => {
             const active = it.id === route;
             return (
               <button
                 key={it.id}
                 onClick={() => onChange(it.id)}
+                aria-current={active ? 'page' : undefined}
                 className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   active ? 'text-white' : 'text-ink-700 hover:text-ink-900'
                 }`}
@@ -83,23 +84,26 @@ export const TopBar: React.FC<Props> = ({ route, onChange }) => {
           </span>
           <button
             onClick={() => setDark((d) => !d)}
-            className="w-8 h-8 rounded-lg grid place-items-center transition-colors hover:bg-brand-50"
+            className="w-8 h-8 rounded-lg grid place-items-center transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/25"
             style={{ backgroundColor: 'var(--card-bg-subtle)', borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--border-subtle)' }}
+            aria-label={dark ? 'Включить светлую тему' : 'Включить тёмную тему'}
+            aria-pressed={dark}
             title={dark ? 'Светлая тема' : 'Тёмная тема'}
           >
-            {dark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-ink-500" />}
+            {dark ? <Sun size={15} className="text-amber-400" aria-hidden="true" /> : <Moon size={15} className="text-ink-500" aria-hidden="true" />}
           </button>
         </div>
       </div>
 
       {/* Мобильная навигация */}
-      <nav className="md:hidden px-5 pb-3 flex items-center gap-1">
+      <nav aria-label="Мобильная навигация" className="md:hidden px-5 pb-3 flex items-center gap-1">
         {ITEMS.map((it) => {
           const active = it.id === route;
           return (
             <button
               key={it.id}
               onClick={() => onChange(it.id)}
+              aria-current={active ? 'page' : undefined}
               className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                 active
                   ? 'bg-gradient-to-br from-brand-500 to-accent-500 text-white shadow-glow'

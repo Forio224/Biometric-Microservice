@@ -222,7 +222,8 @@ export const AuthPage: React.FC = () => {
             <button
               key={m}
               onClick={() => { if (!busy) { setMode(m); resetAll(); } }}
-              className={`relative px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              aria-pressed={active}
+              className={`relative px-4 py-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/25 ${
                 active ? 'text-white' : 'text-ink-700 hover:text-ink-900'
               }`}
             >
@@ -283,7 +284,7 @@ export const AuthPage: React.FC = () => {
           </div>
 
           <div className="mt-5">
-            <label className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-500 mb-1.5">
+            <label htmlFor="control-phrase" className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-500 mb-1.5">
               Контрольная фраза {mode === 'register' && (
                 <span className="text-brand-600 normal-case tracking-normal font-medium">
                   · образец {Math.min(collectedSamples.length + 1, REQUIRED_SAMPLES)} из {REQUIRED_SAMPLES}
@@ -292,6 +293,7 @@ export const AuthPage: React.FC = () => {
             </label>
             <div className="relative">
               <textarea
+                id="control-phrase"
                 rows={3}
                 value={phrase}
                 disabled={busy || !!registerDone}
@@ -474,7 +476,7 @@ const PipelineList: React.FC<PipelineProps> = ({ stage, progress }) => {
           return (
             <li key={p.key} className="flex items-center gap-2 text-xs">
               <span className={`w-1.5 h-1.5 rounded-full ${reached ? 'bg-brand-500' : 'bg-ink-200'}`} />
-              <span className={reached ? 'text-ink-800 font-medium' : 'text-ink-400'}>{p.label}</span>
+              <span className={reached ? 'text-ink-800 font-medium' : 'text-ink-500'}>{p.label}</span>
             </li>
           );
         })}

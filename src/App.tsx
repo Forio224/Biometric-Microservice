@@ -25,6 +25,7 @@ const Shell: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <a href="#main" className="skip-link">Перейти к основному содержимому</a>
       <TopBar route={route} onChange={setRoute} />
 
       <AnimatePresence>
@@ -53,7 +54,7 @@ const Shell: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-5 sm:px-8 py-8 sm:py-10">
+      <main id="main" className="flex-1 max-w-[1280px] w-full mx-auto px-5 sm:px-8 py-8 sm:py-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={route}
@@ -76,31 +77,13 @@ const Shell: React.FC = () => {
 
 const Footer: React.FC = () => (
   <footer className="mt-auto border-t backdrop-blur-md" style={{ backgroundColor: 'var(--footer-bg)', borderColor: 'var(--border-subtle)' }}>
-    <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-ink-600">
-      <div>
-        <div className="font-display font-semibold text-ink-900 mb-1">KeystrokeID</div>
-        <p className="leading-relaxed">
-          Прототип системы биометрической аутентификации на основе клавиатурного почерка.
-          Демонстрационный интерфейс для выпускной квалификационной работы.
-        </p>
+    <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-ink-600">
+      <div className="flex items-center gap-2.5">
+        <div className="font-display font-semibold text-ink-900">KeystrokeID</div>
+        <span className="text-ink-400">·</span>
+        <span>Аутентификация по клавиатурному почерку</span>
       </div>
-      <div>
-        <div className="font-display font-semibold text-ink-900 mb-1">Стек</div>
-        <p className="leading-relaxed">
-          React 19 · TypeScript · Vite · TailwindCSS · Framer Motion · Recharts.
-          Backend: FastAPI + PostgreSQL + GMM.
-        </p>
-      </div>
-      <div className="md:text-right">
-        <div className="font-display font-semibold text-ink-900 mb-1">Год</div>
-        <p className="num text-[18px] text-ink-900 font-semibold">{new Date().getFullYear()}</p>
-        <p>«Клавиатурный почерк — уникальная поведенческая характеристика».</p>
-      </div>
-    </div>
-    <div className="border-t" style={{ borderColor: 'var(--border-subtle)' }}>
-      <div className="max-w-[1280px] mx-auto px-5 sm:px-8 py-3 text-[11px] uppercase tracking-[0.22em] text-ink-500 text-center">
-        Выпускная квалификационная работа · прототип программного комплекса · {new Date().getFullYear()}
-      </div>
+      <p className="text-ink-500">© {new Date().getFullYear()} KeystrokeID. Все права защищены.</p>
     </div>
   </footer>
 );

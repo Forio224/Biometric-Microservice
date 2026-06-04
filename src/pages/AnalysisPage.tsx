@@ -18,6 +18,19 @@ import type { KeystrokeFeatures, UserTemplate } from '../types';
 
 const clean = (code: string) => code.replace('Key', '').replace(/Digit/, '').replace('Numpad', 'N');
 
+// Recharts tooltips use a light surface in both themes, so force dark, high-contrast text
+// (otherwise the inherited dark-theme text colour is near-invisible on the white tooltip).
+const TOOLTIP_STYLE = {
+  background: 'rgba(255,255,255,0.97)',
+  border: '1px solid rgba(31,74,224,0.18)',
+  borderRadius: 12,
+  fontSize: 12,
+  color: '#0f1628',
+  boxShadow: '0 10px 30px -10px rgba(15,22,40,0.45)',
+} as const;
+const TOOLTIP_LABEL = { color: '#0f1628', fontWeight: 600 } as const;
+const TOOLTIP_ITEM = { color: '#1d2540' } as const;
+
 // Генерация «текущего» ввода — отклонения вокруг эталона
 const noisySeries = <T extends { reference: number }>(
   arr: T[],
@@ -125,12 +138,9 @@ export const AnalysisPage: React.FC = () => {
                   domain={['dataMin - 10', 'dataMax + 10']}
                 />
                 <Tooltip
-                  contentStyle={{
-                    background: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(31,74,224,0.15)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL}
+                  itemStyle={TOOLTIP_ITEM}
                   formatter={(v: number) => `${v} мс`}
                 />
                 <Legend
@@ -199,12 +209,9 @@ export const AnalysisPage: React.FC = () => {
                   axisLine={false} tickLine={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    background: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(31,74,224,0.15)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL}
+                  itemStyle={TOOLTIP_ITEM}
                   formatter={(v: number) => `${v} мс`}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} iconType="plainline" />
@@ -263,12 +270,9 @@ export const AnalysisPage: React.FC = () => {
                   tickLine={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    background: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(31,74,224,0.15)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL}
+                  itemStyle={TOOLTIP_ITEM}
                   formatter={(v: number) => `${v} мс`}
                 />
                 <Bar

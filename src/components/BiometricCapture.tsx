@@ -109,7 +109,7 @@ export const BiometricCapture: React.FC<Props> = ({ charsTyped, expected = 56, a
       <div className="absolute left-4 right-4 bottom-3 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-ink-500 num">
         <span>tick #{String(tick).padStart(3, '0')}</span>
         <span>events: {charsTyped}</span>
-        <span className={active ? 'text-emerald-600' : 'text-ink-400'}>
+        <span className={active ? 'text-emerald-600' : 'text-ink-500'}>
           {active ? '● capturing' : '○ idle'}
         </span>
       </div>

@@ -48,7 +48,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastCtx.Provider value={{ push }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 w-[360px] max-w-[90vw]">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 w-[360px] max-w-[90vw]"
+      >
         <AnimatePresence>
           {items.map((t) => (
             <motion.div

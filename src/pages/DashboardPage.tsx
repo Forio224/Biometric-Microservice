@@ -18,6 +18,19 @@ import {
 } from '../mock/data';
 import { useAppState } from '../AppContext';
 
+// Recharts tooltips use a light surface in both themes, so force dark, high-contrast text
+// (otherwise the inherited dark-theme text colour is near-invisible on the white tooltip).
+const TOOLTIP_STYLE = {
+  background: 'rgba(255,255,255,0.97)',
+  border: '1px solid rgba(31,74,224,0.18)',
+  borderRadius: 12,
+  fontSize: 12,
+  color: '#0f1628',
+  boxShadow: '0 10px 30px -10px rgba(15,22,40,0.45)',
+} as const;
+const TOOLTIP_LABEL = { color: '#0f1628', fontWeight: 600 } as const;
+const TOOLTIP_ITEM = { color: '#1d2540' } as const;
+
 export const DashboardPage: React.FC = () => {
   const { online, ready, baseUrl, refresh, users, history, lastSession, clearHistory } = useAppState();
 
@@ -48,6 +61,17 @@ export const DashboardPage: React.FC = () => {
   const successCount = attempts.filter((a) => a.status === 'success').length;
   const successRate = attempts.length > 0 ? Math.round((successCount / attempts.length) * 100) : 0;
 
+  // Уровень доверия рассчитывается по реальной истории верификаций пользователя:
+  // среднее нормализованного score (насколько ритм совпадал с эталоном) и доля успешных
+  // попыток. Если верификаций ещё не было — данных нет (null), показываем «—».
+  const trustFor = (username: string): number | null => {
+    const items = history.filter((h) => h.username === username);
+    if (items.length === 0) return null;
+    const avgScore = items.reduce((s, h) => s + clampUnit(scoreToUnit(h.score, h.threshold)), 0) / items.length;
+    const successRate = items.filter((h) => h.status === 'success').length / items.length;
+    return clampUnit(0.6 * avgScore + 0.4 * successRate);
+  };
+
   const showMockUsers = users.length === 0;
   const userList = showMockUsers
     ? MOCK_USERS
@@ -56,7 +80,7 @@ export const DashboardPage: React.FC = () => {
         username: u.username,
         fullName: u.username.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         role: i === 0 ? 'Администратор' : 'Пользователь',
-        trust: 0.85 - (i % 5) * 0.04,
+        trust: trustFor(u.username),
         registeredAt: u.created_at,
         lastLogin: u.created_at,
         samples: 5,
@@ -180,12 +204,9 @@ export const DashboardPage: React.FC = () => {
                 <XAxis dataKey="week" tick={{ fill: '#6b7a99', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#6b7a99', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                 <Tooltip
-                  contentStyle={{
-                    background: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(31,74,224,0.15)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL}
+                  itemStyle={TOOLTIP_ITEM}
                   formatter={(v: number, n: string) => [`${v}%`, n]}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 6 }} iconType="plainline" />
@@ -218,12 +239,9 @@ export const DashboardPage: React.FC = () => {
                 <XAxis dataKey="bin" tick={{ fill: '#6b7a99', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#6b7a99', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{
-                    background: 'rgba(255,255,255,0.95)',
-                    border: '1px solid rgba(31,74,224,0.15)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL}
+                  itemStyle={TOOLTIP_ITEM}
                   formatter={(v: number) => [`${v} попыток`, '']}
                 />
                 <defs>
@@ -271,12 +289,17 @@ export const DashboardPage: React.FC = () => {
                   <div className="text-sm font-semibold text-ink-900 truncate">{('fullName' in u ? u.fullName : u.username) as string}</div>
                   <div className="text-[11px] text-ink-500 num truncate">@{u.username} · {('role' in u ? u.role : '—') as string}</div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="num text-[13px] font-semibold text-ink-900">
-                    {Math.round((('trust' in u ? u.trust : 0.8) as number) * 100)}%
-                  </div>
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-ink-500">trust</div>
-                </div>
+                {(() => {
+                  const trustVal = ('trust' in u ? u.trust : null) as number | null;
+                  return (
+                    <div className="text-right shrink-0" title={trustVal === null ? 'Недостаточно данных: пользователь ещё не проходил верификацию' : 'Средняя стабильность совпадения ритма по истории верификаций'}>
+                      <div className="num text-[13px] font-semibold text-ink-900">
+                        {trustVal === null ? '—' : `${Math.round(trustVal * 100)}%`}
+                      </div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-ink-500">trust</div>
+                    </div>
+                  );
+                })()}
               </motion.li>
             ))}
           </ul>
@@ -324,13 +347,13 @@ export const DashboardPage: React.FC = () => {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-[0.18em] text-ink-500">
-                <th className="text-left font-semibold py-2 px-3">id</th>
-                <th className="text-left font-semibold py-2 px-3">Пользователь</th>
-                <th className="text-left font-semibold py-2 px-3">Время</th>
-                <th className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Метод' : 'Устройство'}</th>
-                <th className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Источник' : 'IP'}</th>
-                <th className="text-left font-semibold py-2 px-3">Score</th>
-                <th className="text-left font-semibold py-2 px-3">Статус</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">id</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">Пользователь</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">Время</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Метод' : 'Устройство'}</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">{useRealHistory ? 'Источник' : 'IP'}</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">Score</th>
+                <th scope="col" className="text-left font-semibold py-2 px-3">Статус</th>
               </tr>
             </thead>
             <tbody>
