@@ -42,6 +42,17 @@ CREATE DATABASE dna;
 - `ALLOWED_ORIGINS` — список origin для CORS (JSON-массив).
 - `VERIFY_RATE_LIMIT_PER_MINUTE` — лимит попыток верификации в минуту с одного IP+username.
 
+## Деплой на Railway
+
+В Railway необходимо задать переменную `DATABASE_URL`, указывающую на **приватный** адрес базы данных внутри проекта. Используйте значение из поля **Private URL** сервиса Postgres (не `DATABASE_PUBLIC_URL`).
+
+Формат приватного URL:
+```
+DATABASE_URL=postgresql+psycopg://<user>:<password>@Postgres.railway.internal:5432/<db>
+```
+
+> **Важно:** не используйте `DATABASE_PUBLIC_URL`. Публичный TCP-прокси (например, `66.33.22.226:11187`) маршрутизирует трафик через интернет и может вызывать ошибку `password authentication failed`. Приватная сеть Railway быстрее, безопаснее и не требует внешнего подключения.
+
 ## Конфигурация (frontend)
 
 - `VITE_API_URL` — URL FastAPI-бэкенда. На single-container деплое можно оставить пустым (same-origin).

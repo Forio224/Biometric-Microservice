@@ -3,6 +3,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # On Railway, set DATABASE_URL to the private network connection string:
+    #   postgresql+psycopg://<user>:<password>@Postgres.railway.internal:5432/<db>
+    # Do NOT use DATABASE_PUBLIC_URL — the public TCP proxy causes authentication
+    # failures and routes traffic over the internet unnecessarily.
     database_url: str = Field(
         default="postgresql+psycopg://postgres:123@localhost:5432/dna",
         alias="DATABASE_URL",
