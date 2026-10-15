@@ -6,6 +6,10 @@ from sklearn.mixture import GaussianMixture
 from app.schemas import KeystrokeFeatures
 
 
+class TemplateOutdatedError(Exception):
+    """Шаблон сохранён до ML-01: в нём нет параметров модели, нужна перерегистрация."""
+
+
 def extract_feature_vector(
     sample: KeystrokeFeatures,
     dwell_keys: List[str],
@@ -20,7 +24,7 @@ def extract_feature_vector(
     return np.array(vec)
 
 
-def create_template(samples: List[KeystrokeFeatures]) -> dict:
+def create_template(samples: list[KeystrokeFeatures]) -> dict:
     dwells_map = {}
     flights_map = {}
 
@@ -80,35 +84,36 @@ def create_template(samples: List[KeystrokeFeatures]) -> dict:
         "std_ll": std_ll,
         "correction_rate_mean": correction_rate_mean,
         "correction_rate_std": correction_rate_std,
+        # np.asarray — для анализатора типов: после fit атрибуты не None, но sklearn этого не объявляет
+        "model": {
+            "covariance_type": gmm.covariance_type,
+            "weights": np.asarray(gmm.weights_).tolist(),
+            "means": np.asarray(gmm.means_).tolist(),
+            "covariances": np.asarray(gmm.covariances_).tolist(),
+        },
     }
 
 
-def calculate_score(sample: KeystrokeFeatures, template: dict, recent_samples: List[dict] | None = None) -> float:
-    dwell_keys = template.get("dwell_keys", [])
-    flight_keys = template.get("flight_keys", [])
-    y = extract_feature_vector(sample, dwell_keys, flight_keys).reshape(1, -1)
+def load_model(params: dict) -> GaussianMixture:
+    """Восстанавливает обученную GMM из параметров, сохранённых в шаблоне."""
+    covariance_type = params["covariance_type"]
+    if covariance_type != "diag":
+        raise ValueError(f"Восстановление GMM поддерживается только для covariance_type='diag', получено: {covariance_type!r}")
 
-    if not recent_samples:
-        return -9999.0
+    weights = np.array(params["weights"])
+    gmm = GaussianMixture(n_components=len(weights), covariance_type=covariance_type)
+    gmm.weights_ = weights
+    gmm.means_ = np.array(params["means"])
+    # reg_covar уже включён в covariances_ при fit — повторно не прибавляется
+    gmm.covariances_ = np.array(params["covariances"])
+    gmm.precisions_cholesky_ = 1.0 / np.sqrt(gmm.covariances_)
+    return gmm
 
-    X = []
-    for sample_dict in recent_samples:
-        vec = []
-        for key in dwell_keys:
-            vec.append(sample_dict.get("dwellTimes", {}).get(key, 0.0))
-        for key in flight_keys:
-            vec.append(sample_dict.get("flightTimes", {}).get(key, 0.0))
-        vec.append(sample_dict.get("correctionRate", 0.0))
-        X.append(vec)
 
-    X = np.array(X)
-    n_components = 2 if len(X) >= 10 else 1
-    gmm = GaussianMixture(
-        n_components=n_components,
-        covariance_type="diag",
-        reg_covar=5.0,
-        random_state=42,
-    )
-    gmm.fit(X)
+def calculate_score(sample: KeystrokeFeatures, template: dict) -> float:
+    if "model" not in template:
+        raise TemplateOutdatedError("В шаблоне нет параметров модели")
+
+    gmm = load_model(template["model"])
+    y = extract_feature_vector(sample, template["dwell_keys"], template["flight_keys"]).reshape(1, -1)
     return float(gmm.score_samples(y)[0])
-

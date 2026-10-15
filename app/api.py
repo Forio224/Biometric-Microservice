@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import Base, engine, get_db
-from app.ml import calculate_score, create_template
+from app.ml import TemplateOutdatedError, calculate_score, create_template
 from app.models import UserDB
 from app.schemas import KeystrokeFeatures, RegisterRequest, VerifyRequest
 from app.security import SimpleRateLimiter
@@ -77,9 +77,13 @@ def verify_user(req: VerifyRequest, request: Request, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     template = user.template_data
-    recent_samples = template.get("recent_samples", [])
-
-    score = calculate_score(req.sample, template, recent_samples)
+    try:
+        score = calculate_score(req.sample, template)
+    except TemplateOutdatedError:
+        raise HTTPException(
+            status_code=409,
+            detail="Шаблон устарел после обновления системы. Пройдите регистрацию заново",
+        )
     threshold = template.get("threshold", -9999.0)
     is_match = score >= threshold
 
@@ -97,7 +101,6 @@ def verify_user(req: VerifyRequest, request: Request, db: Session = Depends(get_
         parsed_samples = [KeystrokeFeatures(**s) for s in recent_samples]
         new_template = create_template(parsed_samples)
         new_template["recent_samples"] = recent_samples
-        new_template["threshold"] = threshold
 
         user.template_data = new_template
         db.commit()
