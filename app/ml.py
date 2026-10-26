@@ -1,5 +1,3 @@
-from typing import List
-
 import numpy as np
 from sklearn.mixture import GaussianMixture
 
@@ -12,8 +10,8 @@ class TemplateOutdatedError(Exception):
 
 def extract_feature_vector(
     sample: KeystrokeFeatures,
-    dwell_keys: List[str],
-    flight_keys: List[str],
+    dwell_keys: list[str],
+    flight_keys: list[str],
 ) -> np.ndarray:
     vec = []
     for key in dwell_keys:
@@ -65,7 +63,9 @@ def create_template(samples: list[KeystrokeFeatures]) -> dict:
     threshold = baseline_ll - max(3.0 * std_ll, abs(baseline_ll) * 0.1)
     correction_rates = [s.correctionRate or 0.0 for s in samples]
     correction_rate_mean = float(np.mean(correction_rates))
-    correction_rate_std = float(np.std(correction_rates)) if len(correction_rates) > 1 else 0.02
+    correction_rate_std = (
+        float(np.std(correction_rates)) if len(correction_rates) > 1 else 0.02
+    )
 
     return {
         "phrase": "test_phrase",
@@ -98,7 +98,9 @@ def load_model(params: dict) -> GaussianMixture:
     """Восстанавливает обученную GMM из параметров, сохранённых в шаблоне."""
     covariance_type = params["covariance_type"]
     if covariance_type != "diag":
-        raise ValueError(f"Восстановление GMM поддерживается только для covariance_type='diag', получено: {covariance_type!r}")
+        raise ValueError(
+            f"Восстановление GMM поддерживается только для covariance_type='diag', получено: {covariance_type!r}"
+        )
 
     weights = np.array(params["weights"])
     gmm = GaussianMixture(n_components=len(weights), covariance_type=covariance_type)
@@ -115,5 +117,7 @@ def calculate_score(sample: KeystrokeFeatures, template: dict) -> float:
         raise TemplateOutdatedError("В шаблоне нет параметров модели")
 
     gmm = load_model(template["model"])
-    y = extract_feature_vector(sample, template["dwell_keys"], template["flight_keys"]).reshape(1, -1)
+    y = extract_feature_vector(
+        sample, template["dwell_keys"], template["flight_keys"]
+    ).reshape(1, -1)
     return float(gmm.score_samples(y)[0])
