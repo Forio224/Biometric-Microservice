@@ -31,7 +31,7 @@ from app import ml
 from experiments.cmu_loader import load_cmu
 
 matplotlib.use("Agg")  # рисуем только в файл; вызов должен идти до импорта pyplot
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 TRAINING_SAMPLES = 200
 IMPOSTOR_ATTEMPTS = 5
@@ -191,11 +191,17 @@ def plot_roc_det(results, subjects, path) -> None:
         roc_ax.scatter(eer_far, 1 - eer_frr, marker="o", color=color, zorder=3)
         roc_ax.scatter(result.far, 1 - result.frr, marker="s", color=color, zorder=3)
 
-        inner = [(far, frr) for far, frr in zip(fars, frrs) if 0 < far < 1 and 0 < frr < 1]
+        inner = [
+            (far, frr) for far, frr in zip(fars, frrs) if 0 < far < 1 and 0 < frr < 1
+        ]
         det_fars, det_frrs = zip(*inner)
         det_ax.plot(probit(det_fars), probit(det_frrs), color=color)
-        det_ax.scatter(probit(eer_far), probit(eer_frr), marker="o", color=color, zorder=3)
-        det_ax.scatter(probit(result.far), probit(result.frr), marker="s", color=color, zorder=3)
+        det_ax.scatter(
+            probit(eer_far), probit(eer_frr), marker="o", color=color, zorder=3
+        )
+        det_ax.scatter(
+            probit(result.far), probit(result.frr), marker="s", color=color, zorder=3
+        )
 
     # Пустые точки только ради легенды: форма маркера одинакова у всех испытуемых
     roc_ax.scatter([], [], marker="o", color="gray", label="точка EER")
@@ -221,7 +227,9 @@ def plot_roc_det(results, subjects, path) -> None:
     det_ax.set_title("DET (пробит-шкала); пунктир — FAR = FRR")
     det_ax.grid(True, alpha=0.3)
 
-    fig.suptitle("GMM-шаблон сервиса на CMU: 200 обучающих, 200 своих, 250 чужих попыток")
+    fig.suptitle(
+        "GMM-шаблон сервиса на CMU: 200 обучающих, 200 своих, 250 чужих попыток"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -277,7 +285,9 @@ if __name__ == "__main__":
     fars, frrs = error_curve([-10, -20], [-100, -200])
     assert (fars[0], frrs[0]) == (1, 0), "кривая должна начинаться с (FAR 1, FRR 0)"
     assert (fars[-1], frrs[-1]) == (0, 1), "кривая должна кончаться на (FAR 0, FRR 1)"
-    assert (0, 0) in zip(fars, frrs), "свои и чужие не пересекаются: нужна точка без ошибок"
+    assert (0, 0) in zip(fars, frrs), (
+        "свои и чужие не пересекаются: нужна точка без ошибок"
+    )
     # С ростом порога чужих принимается не больше, а своих отклоняется не меньше
     assert fars == sorted(fars, reverse=True), f"FAR не убывает монотонно: {fars}"
     assert frrs == sorted(frrs), f"FRR не растёт монотонно: {frrs}"
