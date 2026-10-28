@@ -1,4 +1,3 @@
-#
 # ┌─────┬─────────────────────────────┬─────────────────────────────────────┬───────────────────────────────────────┐
 # │  #  │             Шаг             │            Что получится            │             Как проверить             │
 # ├─────┼─────────────────────────────┼─────────────────────────────────────┼───────────────────────────────────────┤
@@ -27,8 +26,8 @@ import matplotlib
 import numpy as np
 from scipy.stats import norm
 
-from app import ml
 from experiments.cmu_loader import load_cmu
+from experiments.methods import GMMMethod
 
 matplotlib.use("Agg")  # рисуем только в файл; вызов должен идти до импорта pyplot
 import matplotlib.pyplot as plt
@@ -55,13 +54,20 @@ def split_subject(data, subject) -> tuple[list, list, list]:
     return train, genuine, impostor
 
 
-def score_subject(data, subject) -> tuple[list[float], list[float], dict]:
-    """Обучает шаблон на train и возвращает (оценки своих, оценки чужих, шаблон)."""
+def score_subject(
+    data, subject, method_cls: type[GMMMethod] = GMMMethod
+) -> tuple[list[float], list[float], GMMMethod]:
+    """Обучает шаблон на train и возвращает
+    (оценки своих, оценки чужих, обученный объект)."""
     train, genuine, impostor = split_subject(data, subject)
-    template = ml.create_template(train)
-    genuine_scores = [ml.calculate_score(s, template) for s in genuine]
-    impostor_scores = [ml.calculate_score(s, template) for s in impostor]
-    return genuine_scores, impostor_scores, template
+    method = method_cls().fit(train)
+    genuine_scores = []
+    impostor_scores = []
+    for el in genuine:
+        genuine_scores.append(method.score(el))
+    for el in impostor:
+        impostor_scores.append(method.score(el))
+    return genuine_scores, impostor_scores, method
 
 
 def describe(name, scores) -> str:
@@ -101,11 +107,15 @@ def eer(genuine_scores, impostor_scores):
     for threshold in total_scores:
         far, frr = far_frr(genuine_scores, impostor_scores, threshold)
         diff = abs(far - frr)
+
         if diff < min_diff:
             min_diff = diff
             best_threshold = threshold
             best_far = far
             best_frr = frr
+    assert (
+        best_far is not None and best_frr is not None and best_threshold is not None
+    ), "Значения переменных не должно быть None"
     eer_value = (best_far + best_frr) / 2
     return eer_value, best_threshold
 
@@ -120,13 +130,15 @@ class SubjectResult(NamedTuple):
     impostor_scores: list[float]
 
 
-def evaluate_all(data) -> dict[str, SubjectResult]:
+def evaluate_all(
+    data, method_cls: type[GMMMethod] = GMMMethod
+) -> dict[str, SubjectResult]:
     """Оценивает каждого испытуемого: EER и FAR/FRR при пороге сервиса."""
     results = {}
     for subject in data:
-        genuine, impostor, template = score_subject(data, subject)
+        genuine, impostor, method = score_subject(data, subject, method_cls)
         eer_value, eer_threshold = eer(genuine, impostor)
-        service_threshold = template["threshold"]
+        service_threshold = method.threshold
         far, frr = far_frr(genuine, impostor, service_threshold)
         subject_result = SubjectResult(
             eer=eer_value,
@@ -314,7 +326,7 @@ if __name__ == "__main__":
 
     print("шаг 1: разбиение верное")
 
-    gen, imp, template = score_subject(data, subject)
+    gen, imp, gmm = score_subject(data, subject, GMMMethod)
     assert len(gen) == expected_genuine, (
         f"оценок genuine: {len(gen)}, ожидали {expected_genuine}"
     )
@@ -331,11 +343,11 @@ if __name__ == "__main__":
     print("шаг 2: оценки посчитаны")
     print(describe("  свои ", gen))
     print(describe("  чужие", imp))
-    print(f"  порог сервиса: {template['threshold']:.1f}")
+    print(f"  порог сервиса: {gmm.threshold:.1f}")
 
     # Диапазоны своих и чужих перекрываются, порог сервиса внутри перекрытия,
     # значит обе ошибки ненулевые
-    far, frr = far_frr(gen, imp, template["threshold"])
+    far, frr = far_frr(gen, imp, gmm.threshold)
     assert 0 < far < 1, f"FAR при пороге сервиса: {far}, ожидали строго между 0 и 1"
     assert 0 < frr < 1, f"FRR при пороге сервиса: {frr}, ожидали строго между 0 и 1"
 
@@ -346,15 +358,15 @@ if __name__ == "__main__":
     rate, threshold = eer(gen, imp)
     assert 0 < rate < 0.5, f"EER: {rate}, ожидали строго между 0 и 0.5"
     # При пороге сервиса FAR > FRR, а подъём порога снижает FAR и повышает FRR
-    assert threshold > template["threshold"], (
-        f"порог EER {threshold:.1f} не выше порога сервиса {template['threshold']:.1f}"
+    assert threshold > gmm.threshold, (
+        f"порог EER {threshold:.1f} не выше порога сервиса {gmm.threshold:.1f}"
     )
     far, frr = far_frr(gen, imp, threshold)
 
     print("шаг 4: EER")
     print(f"  EER {rate:.3f} при пороге {threshold:.1f} (FAR {far:.3f}, FRR {frr:.3f})")
 
-    results = evaluate_all(data)
+    results = evaluate_all(data, GMMMethod)
     assert len(results) == len(data), (
         f"результатов: {len(results)}, ожидали {len(data)}"
     )
