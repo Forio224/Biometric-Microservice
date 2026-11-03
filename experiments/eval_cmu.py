@@ -27,7 +27,7 @@ import numpy as np
 from scipy.stats import norm
 
 from experiments.cmu_loader import load_cmu
-from experiments.methods import GMMMethod
+from experiments.methods import GMMMethod, Method, ScaledManhattanMethod
 
 matplotlib.use("Agg")  # рисуем только в файл; вызов должен идти до импорта pyplot
 import matplotlib.pyplot as plt
@@ -55,8 +55,8 @@ def split_subject(data, subject) -> tuple[list, list, list]:
 
 
 def score_subject(
-    data, subject, method_cls: type[GMMMethod] = GMMMethod
-) -> tuple[list[float], list[float], GMMMethod]:
+    data, subject, method_cls: type[Method] = GMMMethod
+) -> tuple[list[float], list[float], Method]:
     """Обучает шаблон на train и возвращает
     (оценки своих, оценки чужих, обученный объект)."""
     train, genuine, impostor = split_subject(data, subject)
@@ -123,15 +123,15 @@ def eer(genuine_scores, impostor_scores):
 class SubjectResult(NamedTuple):
     eer: float
     eer_threshold: float
-    service_threshold: float
-    far: float
-    frr: float
+    service_threshold: float | None
+    far: float | None
+    frr: float | None
     genuine_scores: list[float]
     impostor_scores: list[float]
 
 
 def evaluate_all(
-    data, method_cls: type[GMMMethod] = GMMMethod
+    data, method_cls: type[Method] = GMMMethod
 ) -> dict[str, SubjectResult]:
     """Оценивает каждого испытуемого: EER и FAR/FRR при пороге сервиса."""
     results = {}
@@ -139,7 +139,11 @@ def evaluate_all(
         genuine, impostor, method = score_subject(data, subject, method_cls)
         eer_value, eer_threshold = eer(genuine, impostor)
         service_threshold = method.threshold
-        far, frr = far_frr(genuine, impostor, service_threshold)
+        if service_threshold is None:
+            far = None
+            frr = None
+        else:
+            far, frr = far_frr(genuine, impostor, service_threshold)
         subject_result = SubjectResult(
             eer=eer_value,
             eer_threshold=eer_threshold,
@@ -356,6 +360,7 @@ if __name__ == "__main__":
     print(f"  FRR {frr:.3f} ({frr * len(gen):.0f} из {len(gen)} своих отклонено)")
 
     rate, threshold = eer(gen, imp)
+    assert gmm.threshold is not None, "gmm.threshold не должен быть None"
     assert 0 < rate < 0.5, f"EER: {rate}, ожидали строго между 0 и 0.5"
     # При пороге сервиса FAR > FRR, а подъём порога снижает FAR и повышает FRR
     assert threshold > gmm.threshold, (
@@ -382,12 +387,15 @@ if __name__ == "__main__":
     eers = [result.eer for result in results.values()]
     fars = [result.far for result in results.values()]
     frrs = [result.frr for result in results.values()]
+
     low_threshold = sum(
-        result.eer_threshold > result.service_threshold for result in results.values()
+        result.eer_threshold > result.service_threshold
+        for result in results.values()
+        if result.service_threshold is not None
     )
 
     print(f"шаг 5: по всем испытуемым ({len(results)})")
-    print(summarize("  EER", eers) + " (Killourhy & Maxion: 0.096)")
+    print(summarize("  EER", eers))
     print("  при пороге сервиса:")
     print(summarize("    FAR", fars))
     print(summarize("    FRR", frrs))
@@ -403,3 +411,15 @@ if __name__ == "__main__":
     for label, name in subjects.items():
         print(f"  {label}: {name}, EER {results[name].eer:.3f}")
     print(f"  сохранено в {figure_path}")
+
+    manhattan_results = evaluate_all(data, ScaledManhattanMethod)
+    assert len(manhattan_results) == len(data), (
+        f"результатов: {len(manhattan_results)}, ожидали {len(data)}"
+    )
+    for name, result in manhattan_results.items():
+        assert 0 <= result.eer <= 0.5, f"EER {name}: {result.eer}, ожидали от 0 до 0.5"
+
+    manhattan_eers = [result.eer for result in manhattan_results.values()]
+
+    print(f"шаг 7: Scaled Manhattan ({len(manhattan_results)})")
+    print(summarize("  EER", manhattan_eers) + " (Killourhy & Maxion: 0.096)")
