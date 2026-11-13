@@ -1,6 +1,11 @@
+import math
+import string
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
+
+uppers = set(string.ascii_uppercase)
+ALLOWED = uppers | {"Space"}
 
 
 class User(NamedTuple):
@@ -20,6 +25,12 @@ class Pressed(NamedTuple):
     key: str
     down: int
     up: int
+
+
+class Pair(NamedTuple):
+    f_key: str
+    s_key: str
+    ud: int
 
 
 def list_files(root: Path | str) -> list[Path]:
@@ -74,6 +85,32 @@ def to_pressed(events: list[Event]) -> tuple[list[Pressed], Counter]:
     return total_pressed, c
 
 
+def letters_presses(pressed: list[Pressed]) -> list[Pressed]:
+    letters = [letter for letter in pressed if letter.key in ALLOWED]
+    return letters
+
+
+def pairs(pressed: list[Pressed]) -> tuple[list[Pair], Counter]:
+    c = Counter()
+    pairs_list = []
+    # to_pressed отдаёт нажатия в порядке отпускания; печатали в порядке нажатия
+    ordered = sorted(pressed, key=lambda p: p.down)
+    for cur, nxt in zip(ordered, ordered[1:]):
+        # соседи в полном потоке: если между буквами был Backspace/Shift, пары нет
+        if cur.key not in ALLOWED or nxt.key not in ALLOWED:
+            continue
+        ud = nxt.down - cur.up
+        dd = nxt.down - cur.down
+        if dd > 2000:
+            c["pause"] += 1
+            continue
+        if ud < 0:
+            c["below_zero"] += 1
+        pairs_list.append(Pair(cur.key, nxt.key, ud))
+
+    return pairs_list, c
+
+
 if __name__ == "__main__":
     path = "./data/buffalo/UB_keystroke_dataset"
     files = list_files(path)
@@ -107,18 +144,42 @@ if __name__ == "__main__":
     c = Counter()
     cleaning = Counter()
     n_pressed = 0
+    n_letters = 0
+    pair_stats = Counter()
+    pair_rate = Counter()
     for file in files:
         events = read_events(file)
         c.update(ev.event for ev in events)
         pressed, rules = to_pressed(events)
         cleaning.update(rules)
         n_pressed += len(pressed)
+        n_letters += len(letters_presses(pressed))
+        l_pairs, counter_pairs = pairs(pressed)
+        pair_stats.update(counter_pairs)
+        pair_stats["total"] += len(l_pairs) + counter_pairs["pause"]
+        pair_rate.update((pr.f_key, pr.s_key) for pr in l_pairs)
+
     assert c["KeyUp"] == 2_468_409, (
         "Количество общих отпусканий клавиш должно быть равно 2 468 409"
     )
     assert c["KeyDown"] == 2_468_072, (
         "Количество общих нажатий клавиш должно быть равно 2 468 072"
     )
+    assert math.isclose(n_letters / n_pressed * 100, 86.6, abs_tol=0.05), (
+        "Соотношение букв и пробелов к нажатым клавишам должно быть ~86.6%"
+    )
+    assert math.isclose(
+        pair_stats["below_zero"] / pair_stats["total"] * 100, 17.4, abs_tol=0.05
+    ), "Доля пар с UD < 0 от всех пар должна быть ~17.4%"
+    assert math.isclose(
+        pair_stats["pause"] / pair_stats["total"] * 100, 1.1, abs_tol=0.05
+    ), "Доля пауз от всех пар должна быть ~1.1%"
+    assert [item[0] for item in pair_rate.most_common(4)] == [
+        ("E", "Space"),
+        ("Space", "T"),
+        ("T", "Space"),
+        ("T", "H"),
+    ], "Самые часто встречающиеся пары должны быть E->Space, Space->T, T->Space, T->H"
 
     expected = {
         "Repeat": 246,
