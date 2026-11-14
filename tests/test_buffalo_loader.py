@@ -6,6 +6,7 @@
 """
 
 import math
+import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -16,9 +17,13 @@ from experiments.buffalo_loader import (
     Pair,
     Pressed,
     User,
+    key_code,
     letters_presses,
     list_files,
+    load_buffalo,
+    make_windows,
     mouse_path,
+    pair_code,
     pairs,
     parse_name,
     read_events,
@@ -26,6 +31,8 @@ from experiments.buffalo_loader import (
     split_users,
     stratum,
     to_pressed,
+    top_pairs,
+    window_bounds,
 )
 
 KEYS_ROOT = Path("data/buffalo/UB_keystroke_dataset")
@@ -129,6 +136,96 @@ def test_pairs_pause_is_not_a_pair():
     result, c = pairs(pressed)
     assert result == [Pair("B", "C", 20)]
     assert c["pause"] == 1
+
+
+# ---------- шаг 5: окна ----------
+
+
+def stream(keys, step=100, hold=50):
+    """Нажатия по очереди через step мс, каждое удерживается hold мс."""
+    return [Pressed(k, i * step, i * step + hold) for i, k in enumerate(keys)]
+
+
+def test_key_codes_match_service():
+    assert key_code("E") == "KeyE"
+    assert key_code("Space") == "Space"
+    assert pair_code("E", "Space") == "KeyE->Space"
+
+
+def test_window_bounds_cover_gaps_and_drop_tail():
+    # w=2: буквы A B | C D | E (хвост). Back между B и C уходит в первое окно.
+    s = stream(["A", "B", "Back", "C", "D", "E"])
+    assert window_bounds(s, 2) == [(0, 3), (3, 5)]
+
+
+def test_window_bounds_last_window_takes_rest_without_tail():
+    s = stream(["A", "B", "Back"])
+    assert window_bounds(s, 2) == [(0, 3)]
+    assert window_bounds(stream(["A"]), 2) == []
+
+
+def test_make_windows_features():
+    keys = ["A", "B", "A", "B", "A", "B", "Back", "C", "D", "C", "D", "C", "D"]
+    windows = make_windows(stream(keys), top_pairs=[("A", "B"), ("B", "C")], w=6, k=3)
+    assert len(windows) == 2
+    first, second = windows
+    assert first.dwellTimes == {"KeyA": 50, "KeyB": 50}
+    assert first.flightTimes == {"KeyA->KeyB": 50}  # B→A не в top, A→B ×3
+    assert first.correctionRate == pytest.approx(1 / 6)
+    assert first.totalDuration == 650  # 0 → up у Back (600 + 50)
+    # B→C разорвана Backspace, C→D не в top; удержаний C и D по 3 — есть
+    assert second.flightTimes == {}
+    assert second.dwellTimes == {"KeyC": 50, "KeyD": 50}
+    assert second.correctionRate == 0
+
+
+def test_make_windows_below_k_is_missing_not_zero():
+    windows = make_windows(stream(["A", "A", "B", "C"]), top_pairs=[], w=4, k=2)
+    assert windows[0].dwellTimes == {"KeyA": 50}
+
+
+def test_make_windows_pair_across_boundary_is_dropped():
+    # w=2: A B | A B — пара B→A на стыке не идёт ни в одно окно
+    windows = make_windows(stream(["A", "B", "A", "B"]), top_pairs=[("B", "A")], w=2, k=1)
+    assert [w.flightTimes for w in windows] == [{}, {}]
+
+
+def test_make_windows_sorts_by_down():
+    # Порядок отпускания: B раньше A. Окно всё равно начинается с A.
+    windows = make_windows([Pressed("B", 50, 90), Pressed("A", 0, 120)], [("A", "B")], w=2, k=1)
+    assert windows[0].flightTimes == {"KeyA->KeyB": -70}
+    assert windows[0].totalDuration == 120
+
+
+# ---------- шаг 6: top-пары и сборка ----------
+
+
+def write_keys(path, keys):
+    t, lines = 0, []
+    for k in keys:
+        lines += [f"{k} KeyDown {t}", f"{k} KeyUp {t + 50}"]
+        t += 100
+    path.write_text("\n".join(lines) + "\n")
+
+
+def test_top_pairs_ranks_by_people_then_occurrences(tmp_path):
+    write_keys(tmp_path / "001000.txt", ["A", "B"] * 10)          # A→B, B→A у 001 много
+    write_keys(tmp_path / "002000.txt", ["A", "B", "C", "D"] * 3)  # у 002 A→B ×3, B→C ×3
+    top = top_pairs([tmp_path / "001000.txt", tmp_path / "002000.txt"], n=2, k=3)
+    # A→B — у двоих; B→A и B→C — у одного, но B→A чаще по вхождениям
+    assert top == [("A", "B"), ("B", "A")]
+
+
+def test_load_buffalo_keeps_empty_files(tmp_path):
+    d = tmp_path / "s0" / "baseline"
+    d.mkdir(parents=True)
+    write_keys(d / "001000.txt", ["A", "B"] * 3)
+    write_keys(d / "001001.txt", ["A"])
+    write_keys(d / "002000.txt", ["A", "B"] * 3)
+    data = load_buffalo(tmp_path, {"001"}, [("A", "B")], w=2, k=1)
+    assert set(data) == {"001"}
+    assert len(data["001"][(0, 0)]) == 3
+    assert data["001"][(0, 1)] == []
 
 
 # ---------- шаг 7: половины A/B ----------
@@ -276,6 +373,20 @@ def test_dataset_letters_and_pairs(dataset_stats):
     assert [k for k, _ in s["pair_rate"].most_common(4)] == [
         ("E", "Space"), ("Space", "T"), ("T", "Space"), ("T", "H"),
     ]
+
+
+@needs_data
+@pytest.mark.data
+def test_dataset_windows(dataset_stats):
+    files = dataset_stats["files"]
+    top = top_pairs([f for f in files if parse_name(f.stem).session == 0], n=50)
+    data = load_buffalo(KEYS_ROOT, {parse_name(f.stem).username for f in files}, top)
+    s1_task1 = [w for d in data.values() for w in d[(1, 1)]]
+    assert statistics.median(len(w.dwellTimes) for w in s1_task1) == 18
+    assert statistics.median(len(w.flightTimes) for w in s1_task1) == 14
+    train = [len(d[(0, 0)]) + len(d[(0, 1)]) for d in data.values()]
+    assert statistics.median(train) == 23
+    assert min(train) == 14
 
 
 @needs_data

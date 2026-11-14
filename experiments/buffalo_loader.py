@@ -1,11 +1,14 @@
 import math
 import random
+import statistics
 import string
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
+
+from app.schemas import KeystrokeFeatures
 
 uppers = set(string.ascii_uppercase)
 ALLOWED = uppers | {"Space"}
@@ -112,6 +115,126 @@ def pairs(pressed: list[Pressed]) -> tuple[list[Pair], Counter]:
         pairs_list.append(Pair(cur.key, nxt.key, ud))
 
     return pairs_list, c
+
+
+# --- шаг 5: окна → KeystrokeFeatures ---
+
+# Сервис считает исправления как (Backspace + Delete), см. src/utils/biometrics.ts:29-30
+CORRECTION_KEYS = {"Back", "Delete"}
+
+
+def key_code(key: str) -> str:
+    """Имя клавиши Buffalo → KeyboardEvent.code, как пишет сервис: E → KeyE, Space → Space."""
+    return "Space" if key == "Space" else f"Key{key}"
+
+
+def pair_code(f_key: str, s_key: str) -> str:
+    """Пара в формате сервиса: KeyE->Space."""
+    return f"{key_code(f_key)}->{key_code(s_key)}"
+
+
+def window_bounds(ordered: list[Pressed], w: int) -> list[tuple[int, int]]:
+    """Границы окон [start, end) в потоке, отсортированном по down.
+
+    Окно — от первой своей буквы до первой буквы следующего окна (или хвоста),
+    поэтому каждое нажатие между буквами попадает ровно в одно окно.
+    Хвост < w букв окна не образует. У последнего окна без хвоста end = конец потока.
+    """
+    letter_idx = [i for i, p in enumerate(ordered) if p.key in ALLOWED]
+    n_windows = len(letter_idx) // w
+    bounds = []
+    for i in range(n_windows):
+        start = letter_idx[i * w]
+        nxt = (i + 1) * w
+        end = letter_idx[nxt] if nxt < len(letter_idx) else len(ordered)
+        bounds.append((start, end))
+    return bounds
+
+
+def medians_by_key(values: dict[str, list[float]], k: int) -> dict[str, float]:
+    """Медиана по каждому признаку, у которого ≥ k вхождений; остальных ключей нет (маска, не 0)."""
+    return {key: statistics.median(v) for key, v in values.items() if len(v) >= k}
+
+
+def make_window(chunk: list[Pressed], top: set[tuple[str, str]], w: int, k: int) -> KeystrokeFeatures:
+    """Одно окно: кусок полного потока по down, в нём ровно w букв/пробелов."""
+    dwell = defaultdict(list)
+    for p in chunk:
+        if p.key in ALLOWED:
+            dwell[key_code(p.key)].append(p.up - p.down)
+
+    flight = defaultdict(list)
+    # Пары строятся только внутри куска — пара на стыке окон не попадает никуда.
+    for pr in pairs(chunk)[0]:
+        if (pr.f_key, pr.s_key) in top:
+            flight[pair_code(pr.f_key, pr.s_key)].append(pr.ud)
+
+    corrections = sum(p.key in CORRECTION_KEYS for p in chunk)
+    # model_construct: UD < 0 (ML-08) и окно ~100 с длиннее лимита схемы в 60 с
+    return KeystrokeFeatures.model_construct(
+        totalDuration=float(max(p.up for p in chunk) - chunk[0].down),
+        dwellTimes=medians_by_key(dwell, k),
+        flightTimes=medians_by_key(flight, k),
+        correctionRate=min(1.0, corrections / w),
+    )
+
+
+def make_windows(
+    pressed: list[Pressed], top_pairs: list[tuple[str, str]], w: int = 200, k: int = 3
+) -> list[KeystrokeFeatures]:
+    """Нажатия одного файла (полный поток из to_pressed) → окна без перекрытия."""
+    ordered = sorted(pressed, key=lambda p: p.down)
+    top = set(top_pairs)
+    return [make_window(ordered[s:e], top, w, k) for s, e in window_bounds(ordered, w)]
+
+
+# --- шаг 6: список пар и сборка набора ---
+
+
+def top_pairs(files: list[Path], n: int = 50, k: int = 3) -> list[tuple[str, str]]:
+    """Top-n пар: сначала по числу людей, у которых пара встречается ≥ k раз, затем по вхождениям.
+
+    Число людей — главный ключ: многословные люди не проталкивают свои пары.
+    Но на s0 Buffalo он насыщается (154 пары есть у всех 148 человек), поэтому
+    при равенстве решают вхождения, а уже потом алфавит (детерминированность).
+    files передаёт вызывающий — только s0 половины разработки (иначе утечка).
+    """
+    per_user = defaultdict(Counter)
+    for file in files:
+        username = parse_name(file.stem).username
+        pressed, _ = to_pressed(read_events(file))
+        per_user[username].update((p.f_key, p.s_key) for p in pairs(pressed)[0])
+
+    people = Counter()
+    occurrences = Counter()
+    for counts in per_user.values():
+        people.update(pair for pair, c in counts.items() if c >= k)
+        occurrences.update(counts)
+
+    ranked = sorted(people, key=lambda pair: (-people[pair], -occurrences[pair], pair))
+    return ranked[:n]
+
+
+def load_buffalo(
+    root: Path | str,
+    users: set[str],
+    top: list[tuple[str, str]],
+    w: int = 200,
+    k: int = 3,
+) -> dict[str, dict[tuple[int, int], list[KeystrokeFeatures]]]:
+    """Окна всех файлов указанных людей: {user: {(сессия, задача): [окна по порядку]}}.
+
+    Список пар приходит готовым — его считают по другой половине людей.
+    Файл без окон даёт пустой список: файл был, окон ноль.
+    """
+    result = defaultdict(dict)
+    for file in sorted(list_files(root)):
+        u = parse_name(file.stem)
+        if u.username not in users:
+            continue
+        pressed, _ = to_pressed(read_events(file))
+        result[u.username][(u.session, u.task)] = make_windows(pressed, top, w, k)
+    return dict(result)
 
 
 # --- шаг 7: разбиение людей на половины A/B ---
@@ -287,6 +410,28 @@ if __name__ == "__main__":
         n_pressed + cleaning["TimeZero"] + cleaning["TimeOver"] + cleaning["Alone"]
     ), "Не сходится баланс KeyUp"
     print(f"Нажатий после очистки: {n_pressed:,}; очистка: {dict(cleaning)}")
+
+    # --- шаги 5–6 ---
+    s0_files = [file for file in files if parse_name(file.stem).session == 0]
+    top = top_pairs(s0_files, n=50)
+    assert len(top) == 50 and top[0] == ("E", "Space"), f"Top-пары: {top[:4]}"
+    everyone = {parse_name(file.stem).username for file in files}
+    data = load_buffalo(path, everyone, top)
+
+    s1_task1 = [win for windows in data.values() for win in windows[(1, 1)]]
+    assert statistics.median(len(win.dwellTimes) for win in s1_task1) == 18, (
+        "В окне s1 задачи 1 медиана клавиш с ≥ 3 вхождениями должна быть 18"
+    )
+    # В разведке было ~15: там пара на стыке окон ещё считалась
+    assert statistics.median(len(win.flightTimes) for win in s1_task1) == 14, (
+        "В окне s1 задачи 1 медиана пар top-50 с ≥ 3 вхождениями должна быть 14"
+    )
+    train_windows = [len(d[(0, 0)]) + len(d[(0, 1)]) for d in data.values()]
+    assert statistics.median(train_windows) == 23, "Медиана окон s0 на человека должна быть 23"
+    # В разведке был минимум 15: задачи склеивались. У 126 — 10 + 4 окна раздельно.
+    assert min(train_windows) == 14, "Минимум окон s0 на человека должен быть 14"
+    assert all(len(d) == 6 for d in data.values()), "У каждого 3 сессии × 2 задачи"
+    print(f"Окон всего: {sum(len(ws) for d in data.values() for ws in d.values()):,}")
 
     # --- шаг 7 ---
     users = [parse_name(file.stem) for file in files]
