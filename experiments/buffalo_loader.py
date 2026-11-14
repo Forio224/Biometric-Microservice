@@ -1,8 +1,11 @@
 import math
+import random
 import string
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import NamedTuple
+
+import numpy as np
 
 uppers = set(string.ascii_uppercase)
 ALLOWED = uppers | {"Space"}
@@ -111,6 +114,86 @@ def pairs(pressed: list[Pressed]) -> tuple[list[Pair], Counter]:
     return pairs_list, c
 
 
+# --- шаг 7: разбиение людей на половины A/B ---
+
+def stratum(user_files: list[User]) -> str:
+    """Слой человека для стратификации: baseline, rotation 1→2→3 или rotation 2→3→1.
+
+    Порядок клавиатур в rotation определяется по клавиатуре сессии 0 (1 или 2).
+    """
+    keyboards = {u.session: u.keyboard for u in user_files}
+    if set(keyboards.values()) == {0}:
+        return "baseline"
+    if keyboards[0] == 1:
+        return "rotation_123"
+    if keyboards[0] == 2:
+        return "rotation_231"
+    raise ValueError(f"Неизвестный порядок клавиатур: {keyboards}")
+
+
+def split_users(users: list[User], seed: int) -> tuple[set[str], set[str]]:
+    """Делит людей на две непересекающиеся половины, поровну из каждого слоя.
+
+    users — разобранные имена всех файлов (несколько User на человека).
+    Лишнего человека нечётного слоя получает половина, в которой пока меньше людей,
+    поэтому итог 74/74, а не 75/73.
+    """
+    by_user = defaultdict(list)
+    for u in users:
+        by_user[u.username].append(u)
+
+    by_stratum = defaultdict(list)
+    for username, user_files in by_user.items():
+        by_stratum[stratum(user_files)].append(username)
+
+    rng = random.Random(seed)
+    a, b = set(), set()
+    for name in sorted(by_stratum):  # фиксированный порядок слоёв → воспроизводимость
+        people = sorted(by_stratum[name])
+        rng.shuffle(people)
+        half = len(people) // 2
+        if len(people) % 2 == 1 and len(a) <= len(b):
+            half += 1
+        a.update(people[:half])
+        b.update(people[half:])
+    return a, b
+
+
+# --- шаг 8: мышь в сырые массивы на общих часах с клавиатурой ---
+
+TICKS_PER_MS = 10_000  # тики .NET (100 нс) → мс клавиатуры
+
+
+def mouse_path(keyboard_path: Path | str, mouse_root: Path | str) -> Path:
+    """Файл мыши с тем же именем, что у файла клавиатуры (мышь лежит плоско)."""
+    return Path(mouse_root) / Path(keyboard_path).name
+
+
+def read_mouse(path: Path | str) -> tuple[np.ndarray, list[tuple[float, str]]]:
+    """Точки (t_мс, x, y) и клики (t_мс, 'Left'|'Right') из файла мыши.
+
+    Время — в тех же мс, что у клавиатуры (тики / 10 000, дробные).
+    Шапку и служебные строки (Window Activated, Closing Down…) пропускаем:
+    в шапке имя пользователя Windows и IP — их не читаем и не печатаем.
+    Порядок строк файла сохраняется; дубли точек не склеиваются (это очистка DM-05).
+    """
+    points = []
+    clicks = []
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            parts = line.rstrip("\n").split(" | ")
+            if len(parts) != 4 or not parts[0].isdigit():
+                continue
+            t = int(parts[0]) / TICKS_PER_MS
+            kind = parts[2]
+            if kind == "Mouse Coordinates":
+                x, y = parts[3].split(",")
+                points.append((t, int(x), int(y)))
+            elif kind in ("Left", "Right"):
+                clicks.append((t, kind))
+    return np.array(points, dtype=float).reshape(-1, 3), clicks
+
+
 if __name__ == "__main__":
     path = "./data/buffalo/UB_keystroke_dataset"
     files = list_files(path)
@@ -204,3 +287,41 @@ if __name__ == "__main__":
         n_pressed + cleaning["TimeZero"] + cleaning["TimeOver"] + cleaning["Alone"]
     ), "Не сходится баланс KeyUp"
     print(f"Нажатий после очистки: {n_pressed:,}; очистка: {dict(cleaning)}")
+
+    # --- шаг 7 ---
+    users = [parse_name(file.stem) for file in files]
+    by_user = defaultdict(list)
+    for u in users:
+        by_user[u.username].append(u)
+    half_a, half_b = split_users(users, seed=0)
+    assert not half_a & half_b, "Половины не должны пересекаться"
+    assert len(half_a | half_b) == 148, "В половинах должны быть все 148 человек"
+    assert len(half_a) == len(half_b) == 74, "Половины должны быть по 74 человека"
+    for name in ("baseline", "rotation_123", "rotation_231"):
+        n_a = sum(stratum(by_user[x]) == name for x in half_a)
+        n_b = sum(stratum(by_user[x]) == name for x in half_b)
+        assert abs(n_a - n_b) <= 1, f"Слой {name} поделён неровно: {n_a} / {n_b}"
+    assert split_users(users, seed=0) == (half_a, half_b), "Тот же seed — то же разбиение"
+    assert split_users(users, seed=1) != (half_a, half_b), "Другой seed — другое разбиение"
+
+    # --- шаг 8 ---
+    mouse_root = "./data/buffalo/UB_mouse_and_events_dataset"
+    n_points = 0
+    n_clicks = Counter()
+    almost_empty = []
+    for file in files:
+        points, clicks = read_mouse(mouse_path(file, mouse_root))
+        n_points += len(points)
+        n_clicks.update(button for _, button in clicks)
+        if len(points) <= 1:
+            almost_empty.append(parse_name(file.stem))
+    assert n_points == 5_457_238, f"Точек мыши {n_points:,}, ожидалось 5 457 238"
+    assert n_clicks == {"Left": 33_516, "Right": 3_596}, f"Клики: {dict(n_clicks)}"
+    assert len(almost_empty) == 88, f"Файлов с ≤ 1 точкой {len(almost_empty)}, ожидалось 88"
+    assert all(u.task == 1 for u in almost_empty), "Без движения мыши — только задача 1"
+
+    points, _ = read_mouse(mouse_path(first_file, mouse_root))
+    # Общие часы: в тех же мс первая точка рядом с первой клавишей (0,3 с).
+    # Ошибка в делителе тиков дала бы разницу в тысячи лет.
+    assert abs(points[0, 0] - first_events[0].ms) < 1000, "Часы мыши и клавиатуры не совпали"
+    print(f"Половины: {len(half_a)} / {len(half_b)}; мышь: {n_points:,} точек, {dict(n_clicks)}")
