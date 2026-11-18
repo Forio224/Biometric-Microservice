@@ -27,7 +27,12 @@ import numpy as np
 from scipy.stats import norm
 
 from experiments.cmu_loader import load_cmu
-from experiments.methods import GMMMethod, Method, ScaledManhattanMethod
+from experiments.methods import (
+    GMMMethod,
+    Method,
+    ScaledManhattanMethod,
+    MahalanobisMethod,
+)
 
 matplotlib.use("Agg")  # рисуем только в файл; вызов должен идти до импорта pyplot
 import matplotlib.pyplot as plt
@@ -423,3 +428,17 @@ if __name__ == "__main__":
 
     print(f"шаг 7: Scaled Manhattan ({len(manhattan_results)})")
     print(summarize("  EER", manhattan_eers) + " (Killourhy & Maxion: 0.096)")
+
+    mahalanobis_results = evaluate_all(data, MahalanobisMethod)
+    assert len(mahalanobis_results) == len(data), (
+        f"результатов: {len(mahalanobis_results)}, ожидали {len(data)}"
+    )
+    for name, result in mahalanobis_results.items():
+        assert 0 <= result.eer <= 0.5, f"EER {name}: {result.eer}, ожидали от 0 до 0.5"
+        scores = result.impostor_scores + result.genuine_scores
+        assert max(scores) <= 0, f"оценка {name}: максимум {max(scores)}, ожидали <= 0"
+
+    mahalanobis_eers = [result.eer for result in mahalanobis_results.values()]
+
+    print(f"шаг 8: Mahalanobis ({len(mahalanobis_results)})")
+    print(summarize("  EER", mahalanobis_eers) + " (Killourhy & Maxion: 0.110)")
