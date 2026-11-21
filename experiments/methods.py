@@ -1,6 +1,7 @@
 from typing import Protocol, Self
 
 import numpy as np
+from sklearn.svm import OneClassSVM
 
 from app import ml
 
@@ -88,3 +89,39 @@ class MahalanobisMethod:
         diff = row - self.means
         result = diff @ self.inv_cov @ diff
         return float(-result)
+
+
+class OneClassSVMMethod:
+    def fit(self, data):
+        self.threshold: float | None = None
+        dwell_keys = set()
+        flight_keys = set()
+        for sample in data:
+            dwell_keys.update(sample.dwellTimes)
+            flight_keys.update(sample.flightTimes)
+        self.dwell_keys = sorted(dwell_keys)
+        self.flight_keys = sorted(flight_keys)
+
+        rows = [
+            ml.extract_feature_vector(s, self.dwell_keys, self.flight_keys)
+            for s in data
+        ]
+        m = np.array(rows)
+        spread = m.std(axis=0)
+        self.mask = spread != 0
+        m = m[:, self.mask]
+
+        self.means = m.mean(axis=0)
+        self.spread = spread[self.mask]
+        m = (m - self.means) / self.spread
+
+        self.model = OneClassSVM().fit(m)
+        return self
+
+    def score(self, sample):
+        row = ml.extract_feature_vector(sample, self.dwell_keys, self.flight_keys)
+        row = row[self.mask]
+        row = (row - self.means) / self.spread
+        row = row.reshape(1, -1)
+        result = self.model.score_samples(row)
+        return float(result[0])

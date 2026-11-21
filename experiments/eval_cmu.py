@@ -29,9 +29,10 @@ from scipy.stats import norm
 from experiments.cmu_loader import load_cmu
 from experiments.methods import (
     GMMMethod,
-    Method,
-    ScaledManhattanMethod,
     MahalanobisMethod,
+    Method,
+    OneClassSVMMethod,
+    ScaledManhattanMethod,
 )
 
 matplotlib.use("Agg")  # рисуем только в файл; вызов должен идти до импорта pyplot
@@ -442,3 +443,17 @@ if __name__ == "__main__":
 
     print(f"шаг 8: Mahalanobis ({len(mahalanobis_results)})")
     print(summarize("  EER", mahalanobis_eers) + " (Killourhy & Maxion: 0.110)")
+
+    oneclass_results = evaluate_all(data, OneClassSVMMethod)
+    assert len(oneclass_results) == len(data), (
+        f"результатов: {len(oneclass_results)}, ожидали {len(data)}"
+    )
+    for name, result in oneclass_results.items():
+        assert 0 <= result.eer <= 0.5, f"EER {name}: {result.eer}, ожидали от 0 до 0.5"
+        scores = result.genuine_scores + result.impostor_scores
+        assert min(scores) >= 0, f"оценка {name}: минимум {min(scores)}, ожидали >= 0"
+
+    oneclass_eers = [result.eer for result in oneclass_results.values()]
+
+    print(f"шаг 9: One-Class SVM ({len(oneclass_results)})")
+    print(summarize("  EER", oneclass_eers) + " (Killourhy & Maxion: 0.102)")
