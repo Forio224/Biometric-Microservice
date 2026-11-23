@@ -1,6 +1,7 @@
 from typing import Protocol, Self
 
 import numpy as np
+from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 
 from app import ml
@@ -122,6 +123,37 @@ class OneClassSVMMethod:
         row = ml.extract_feature_vector(sample, self.dwell_keys, self.flight_keys)
         row = row[self.mask]
         row = (row - self.means) / self.spread
+        row = row.reshape(1, -1)
+        result = self.model.score_samples(row)
+        return float(result[0])
+
+
+class IsolationForestMethod:
+    def fit(self, data):
+        self.threshold: float | None = None
+        dwell_keys = set()
+        flight_keys = set()
+        for sample in data:
+            dwell_keys.update(sample.dwellTimes)
+            flight_keys.update(sample.flightTimes)
+        self.dwell_keys = sorted(dwell_keys)
+        self.flight_keys = sorted(flight_keys)
+
+        rows = [
+            ml.extract_feature_vector(s, self.dwell_keys, self.flight_keys)
+            for s in data
+        ]
+        m = np.array(rows)
+        spread = m.std(axis=0)
+        self.mask = spread != 0
+        m = m[:, self.mask]
+
+        self.model = IsolationForest(random_state=42).fit(m)
+        return self
+
+    def score(self, sample):
+        row = ml.extract_feature_vector(sample, self.dwell_keys, self.flight_keys)
+        row = row[self.mask]
         row = row.reshape(1, -1)
         result = self.model.score_samples(row)
         return float(result[0])

@@ -29,6 +29,7 @@ from scipy.stats import norm
 from experiments.cmu_loader import load_cmu
 from experiments.methods import (
     GMMMethod,
+    IsolationForestMethod,
     MahalanobisMethod,
     Method,
     OneClassSVMMethod,
@@ -457,3 +458,17 @@ if __name__ == "__main__":
 
     print(f"шаг 9: One-Class SVM ({len(oneclass_results)})")
     print(summarize("  EER", oneclass_eers) + " (Killourhy & Maxion: 0.102)")
+
+    isolation_forest_results = evaluate_all(data, IsolationForestMethod)
+    assert len(isolation_forest_results) == len(data), (
+        f"результатов: {len(isolation_forest_results)}, ожидали {len(data)}"
+    )
+    for name, result in isolation_forest_results.items():
+        assert 0 <= result.eer <= 0.5, f"EER {name}: {result.eer}, ожидали от 0 до 0.5"
+        scores = result.genuine_scores + result.impostor_scores
+        assert min(scores) >= -1, f"оценка {name}: минимум {min(scores)}, ожидали >= -1"
+        assert max(scores) < 0, f"оценка {name}: максимум {max(scores)}, ожидали < 0"
+
+    isolation_forest_eers = [result.eer for result in isolation_forest_results.values()]
+    print(f"шаг 10: Isolation Forest ({len(isolation_forest_results)})")
+    print(summarize("  EER", isolation_forest_eers) + " (у Killourhy & Maxion нет)")
