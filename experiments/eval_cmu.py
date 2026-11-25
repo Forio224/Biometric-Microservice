@@ -42,6 +42,7 @@ import matplotlib.pyplot as plt
 TRAINING_SAMPLES = 200
 IMPOSTOR_ATTEMPTS = 5
 FIGURES_DIR = Path("experiments/figures")
+TABLES_DIR = Path("experiments/tables")
 # Пробит-шкала DET не определена в 0 и 1 (norm.ppf даёт ±inf). Точки кривой с
 # нулевой или полной ошибкой не рисуем, как принято для DET; отдельные маркеры
 # прижимаем к этим границам, чтобы они не пропадали
@@ -90,6 +91,23 @@ def summarize(name, values) -> str:
         f"медиана {statistics.median(values):.3f}, "
         f"min {min(values):.3f}, max {max(values):.3f}"
     )
+
+def eer_table(rows) -> str:
+    """Собирает Markdown-таблицу EER по методам.
+
+    rows — список (название, EER по испытуемым, EER из статьи или None).
+    """
+    lines = [
+        "| Метод | EER (среднее ± σ) | Медиана | Killourhy & Maxion |",
+        "|---|---|---|---|",
+    ]
+    for name, eers, paper_eer in rows:
+        paper = "—" if paper_eer is None else f"{paper_eer:.3f}"
+        lines.append(
+            f"| {name} | {statistics.mean(eers):.3f} ± {statistics.stdev(eers):.3f} "
+            f"| {statistics.median(eers):.3f} | {paper} |"
+        )
+    return "\n".join(lines)
 
 
 def far_frr(genuine_scores, impostor_scores, threshold):
@@ -304,6 +322,22 @@ if __name__ == "__main__":
         else:
             raise AssertionError(f"eer{empty_case}: ожидали ValueError")
 
+    # Шаг 12 (таблица EER) на игрушечных данных
+    toy_rows = [
+        ("Метод A", [0.1, 0.2, 0.3], 0.15),
+        ("Метод B", [0.05, 0.05, 0.05], None),
+    ]
+    expected_table = "\n".join(
+        [
+            "| Метод | EER (среднее ± σ) | Медиана | Killourhy & Maxion |",
+            "|---|---|---|---|",
+            "| Метод A | 0.200 ± 0.100 | 0.200 | 0.150 |",
+            "| Метод B | 0.050 ± 0.000 | 0.050 | — |",
+        ]
+    )
+    table = eer_table(toy_rows)
+    assert table == expected_table, f"таблица:\n{table}\nожидали:\n{expected_table}"
+
     # Шаг 6 на игрушечных оценках
     fars, frrs = error_curve([-10, -20], [-100, -200])
     assert (fars[0], frrs[0]) == (1, 0), "кривая должна начинаться с (FAR 1, FRR 0)"
@@ -486,3 +520,39 @@ if __name__ == "__main__":
     print("шаг 11: Проверка отличия EER от seed")
     print(summarize("  EER средний по seed", total_seed_eers_avg))
     print(summarize("  EER s002 по seed", total_s002_eers))
+
+    rows = [
+        ("GMM (шаблон сервиса)", eers, None),
+        ("Scaled Manhattan", manhattan_eers, 0.096),
+        ("Mahalanobis", mahalanobis_eers, 0.110),
+        ("One-Class SVM", oneclass_eers, 0.102),
+        ("Isolation Forest (seed 42)", isolation_forest_eers, None),
+    ]
+    assert len(rows) == 5, f"строк: {len(rows)}, ожидали 5 методов"
+    for name, method_eers, _ in rows:
+        assert len(method_eers) == len(data), (
+            f"{name}: EER у {len(method_eers)} испытуемых, ожидали {len(data)}"
+        )
+
+    seed_note = (
+        f"Isolation Forest по {len(total_seed_eers_avg)} seed: средний EER "
+        f"{statistics.mean(total_seed_eers_avg):.3f} "
+        f"({min(total_seed_eers_avg):.3f}–{max(total_seed_eers_avg):.3f})."
+    )
+    table_text = (
+        f"EER на CMU ({len(data)} испытуемых; {TRAINING_SAMPLES} обучающих, "
+        f"{len(data[subject]) - TRAINING_SAMPLES} своих, "
+        f"{IMPOSTOR_ATTEMPTS * (len(data) - 1)} чужих попыток).\n\n"
+        f"{eer_table(rows)}\n\n{seed_note}\n"
+    )
+    table_path = TABLES_DIR / "eer_cmu.md"
+    table_path.parent.mkdir(parents=True, exist_ok=True)
+    table_path.write_text(table_text, encoding="utf-8")
+    assert table_path.read_text(encoding="utf-8") == table_text, (
+        f"{table_path} записан не полностью"
+    )
+
+    print("шаг 12: таблица EER")
+    print(eer_table(rows))
+    print(f"  {seed_note}")
+    print(f"  сохранено в {table_path}")
