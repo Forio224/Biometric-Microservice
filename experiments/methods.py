@@ -129,6 +129,9 @@ class OneClassSVMMethod:
 
 
 class IsolationForestMethod:
+    def __init__(self, seed=42) -> None:
+        self.seed = seed
+
     def fit(self, data):
         self.threshold: float | None = None
         dwell_keys = set()
@@ -148,7 +151,7 @@ class IsolationForestMethod:
         self.mask = spread != 0
         m = m[:, self.mask]
 
-        self.model = IsolationForest(random_state=42).fit(m)
+        self.model = IsolationForest(random_state=self.seed).fit(m)
         return self
 
     def score(self, sample):

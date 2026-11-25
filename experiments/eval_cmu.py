@@ -472,3 +472,17 @@ if __name__ == "__main__":
     isolation_forest_eers = [result.eer for result in isolation_forest_results.values()]
     print(f"шаг 10: Isolation Forest ({len(isolation_forest_results)})")
     print(summarize("  EER", isolation_forest_eers) + " (у Killourhy & Maxion нет)")
+
+    total_seed_eers_avg = []
+    total_s002_eers = []
+    for seed in range(10):
+        isolation_forest_per_seed_result = evaluate_all(
+            data, lambda: IsolationForestMethod(seed)
+        )
+        seed_eer = [result.eer for result in isolation_forest_per_seed_result.values()]
+        seed_s002 = isolation_forest_per_seed_result["s002"].eer
+        total_seed_eers_avg.append(sum(seed_eer) / len(seed_eer))
+        total_s002_eers.append(seed_s002)
+    print("шаг 11: Проверка отличия EER от seed")
+    print(summarize("  EER средний по seed", total_seed_eers_avg))
+    print(summarize("  EER s002 по seed", total_s002_eers))
